@@ -16,6 +16,44 @@ declare global {
 const rateLimitWindows = new Map<string, number[]>();
 
 /**
+ * Express middleware for admin route protection.
+ * Reads ADMIN_TOKEN env var at call time.
+ * - If unset: returns passthrough middleware (backward compat), logs warning once.
+ * - If set: checks Authorization: Bearer <token>, returns 401 on mismatch.
+ */
+let adminWarningLogged = false;
+
+export function adminAuth(): (req: Request, res: Response, next: NextFunction) => void {
+  const token = process.env.ADMIN_TOKEN;
+
+  if (!token) {
+    if (!adminWarningLogged) {
+      console.warn("WARNING: ADMIN_TOKEN is not set — admin routes are unprotected");
+      adminWarningLogged = true;
+    }
+    return (_req, _res, next) => next();
+  }
+
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      res.status(401).json({ error: "Authorization header required" });
+      return;
+    }
+    if (!authHeader.startsWith("Bearer ")) {
+      res.status(401).json({ error: "Authorization must use Bearer scheme" });
+      return;
+    }
+    const provided = authHeader.slice(7);
+    if (provided !== token) {
+      res.status(401).json({ error: "Invalid admin token" });
+      return;
+    }
+    next();
+  };
+}
+
+/**
  * Express middleware for Bearer token authentication.
  * Extracts API key from Authorization header, validates, and attaches to request.
  * Supports optional organization-level aggregate rate limiting.

@@ -1,5 +1,7 @@
 # Complr
 
+[![CI](https://github.com/complr/complr/actions/workflows/ci.yml/badge.svg)](https://github.com/complr/complr/actions/workflows/ci.yml)
+
 Compliance infrastructure for Asia's regulated crypto economy.
 
 Complr is an AI-powered compliance platform covering **MAS** (Singapore), **SFC** (Hong Kong), and **FSA** (Japan). It provides a core compliance engine, an SDK for exchanges and VASPs to embed compliance checks into their workflows, and a regulated yield platform demonstrating compliance-first DeFi.
@@ -13,6 +15,7 @@ Complr is an AI-powered compliance platform covering **MAS** (Singapore), **SFC*
 | **2** | Regulated Yield Platform | Demo | Compliance-embedded yield vaults for investor pitches |
 | **3** | Product Depth | Complete | Semantic search, OFAC screening, audit logging, multi-tenancy |
 | **3+** | Tests, Persistence, Admin | Complete | Unit tests, file-backed persistence, admin UI, custom screener, SDK audit logs |
+| **4** | Security & CI | Complete | Admin auth, CI pipeline, integration tests |
 
 ---
 
@@ -108,7 +111,23 @@ All `/api/v1/*` routes require a Bearer token via the `Authorization` header.
 | GET | `/api/v1/usage` | Usage stats for current API key |
 | GET | `/api/v1/audit` | Audit logs scoped to current API key |
 
+### Admin Authentication
+
+Admin API routes are protected by the `ADMIN_TOKEN` environment variable:
+
+```bash
+# Start with admin auth enabled
+ADMIN_TOKEN=your-secret-token ANTHROPIC_API_KEY=sk-ant-... npm run start:server
+```
+
+- **If `ADMIN_TOKEN` is set:** all admin API routes require `Authorization: Bearer <token>` header
+- **If `ADMIN_TOKEN` is not set:** admin routes are open (backward compatible), a warning is logged
+
+The admin HTML dashboard (`GET /admin`) remains accessible without auth — it handles authentication via the token input in the UI header.
+
 ### Admin Endpoints
+
+All admin API routes require the admin token when `ADMIN_TOKEN` is set.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -264,13 +283,13 @@ Open `http://localhost:3000/admin` for a web-based admin UI with 4 tabs:
 
 ### Automated Tests
 
-45 unit tests across 7 test files using `node:test` + `tsx`:
+~66 tests across 9 test files using `node:test` + `tsx`:
 
 ```bash
 npm test
 ```
 
-Tests cover: TF-IDF search, audit logging, organizations, API keys, OFAC screener, screening registry, and knowledge base.
+Tests cover: TF-IDF search, audit logging, organizations, API keys, OFAC screener, screening registry, knowledge base, admin auth middleware, and HTTP-level API integration tests.
 
 ---
 
@@ -307,7 +326,8 @@ src/
   demo.ts                           # Demo script (4 features)
   cli.ts                            # Interactive REPL
   api/
-    server.ts                       # Express REST API (legacy + v1 + admin + vault)
+    app.ts                          # createApp() factory for testability
+    server.ts                       # Thin entry point (env, services, listen)
     vault-routes.ts                 # Vault demo endpoints
   audit/
     logger.ts                       # Append-only audit logger with query/filter
@@ -339,7 +359,7 @@ src/
   webhooks/
     manager.ts                      # Webhook registration and HMAC-signed delivery
 
-tests/                              # Unit tests (node:test + tsx)
+tests/                              # Tests (node:test + tsx)
   vector-search.test.ts             # TF-IDF index tests
   audit-logger.test.ts              # Audit logger tests
   organizations.test.ts             # Organization manager tests
@@ -347,6 +367,8 @@ tests/                              # Unit tests (node:test + tsx)
   ofac-screener.test.ts             # OFAC screener tests
   screening-registry.test.ts        # Screening registry tests
   knowledge-base.test.ts            # Knowledge base tests
+  admin-auth.test.ts                # Admin auth middleware tests
+  api-integration.test.ts           # HTTP-level integration tests
 
 sdk/                                # Standalone SDK package (@complr/sdk)
   src/
@@ -393,8 +415,10 @@ The knowledge base ships with 8 regulatory documents covering:
 npm run build       # Compile TypeScript
 npm run dev         # Watch mode
 npm run typecheck   # Type check without emitting
-npm test            # Run unit tests (45 tests, 7 suites)
+npm test            # Run all tests (~66 tests, 9 suites)
 ```
+
+CI runs automatically on push/PR to `master` via GitHub Actions (Node 20, build + test).
 
 ## License
 

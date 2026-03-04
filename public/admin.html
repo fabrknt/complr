@@ -112,6 +112,11 @@
   <header>
     <h1>Complr Admin</h1>
     <span>Compliance Intelligence Platform</span>
+    <div style="margin-left:auto; display:flex; align-items:center; gap:0.5rem;">
+      <label style="font-size:0.8rem; color:var(--muted); margin:0;">Admin Token</label>
+      <input id="admin-token" type="password" placeholder="Enter token..." style="width:200px" />
+      <button onclick="saveToken()" style="padding:0.4rem 0.75rem; font-size:0.8rem;">Save</button>
+    </div>
   </header>
 
   <div class="tabs">
@@ -234,10 +239,35 @@
 
     const API = '';
 
+    function getToken() {
+      return localStorage.getItem('complr_admin_token') || '';
+    }
+
+    function saveToken() {
+      const token = document.getElementById('admin-token').value.trim();
+      if (token) {
+        localStorage.setItem('complr_admin_token', token);
+      } else {
+        localStorage.removeItem('complr_admin_token');
+      }
+    }
+
+    // Load saved token on startup
+    document.getElementById('admin-token').value = getToken();
+
     async function api(method, path, body) {
-      const opts = { method, headers: { 'Content-Type': 'application/json' } };
+      const headers = { 'Content-Type': 'application/json' };
+      const token = getToken();
+      if (token) {
+        headers['Authorization'] = 'Bearer ' + token;
+      }
+      const opts = { method, headers };
       if (body) opts.body = JSON.stringify(body);
       const res = await fetch(API + path, opts);
+      if (res.status === 401) {
+        alert('Authentication failed (401). Check your admin token.');
+        throw new Error('Unauthorized');
+      }
       return res.json();
     }
 
