@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Complr Vault - Regulated Yield Platform</title>
+  <style>
+    :root {
+      --bg: #0a0e17;
+      --surface: #111827;
+      --surface-2: #1a2332;
+      --border: #1e2d3d;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --green: #22c55e;
+      --yellow: #eab308;
+      --red: #ef4444;
+      --purple: #a855f7;
+      --radius: 8px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+    header span { color: var(--text-muted); font-size: 13px; }
+
+    .demo-badge {
+      margin-left: auto;
+      padding: 4px 12px;
+      background: rgba(168,85,247,0.15);
+      color: var(--purple);
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    nav {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    nav button {
+      flex: 1;
+      padding: 12px 16px;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+
+    nav button:hover { color: var(--text); background: var(--surface-2); }
+    nav button.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    .panel { display: none; padding: 24px; max-width: 1100px; margin: 0 auto; }
+    .panel.active { display: block; }
+
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 6px; }
+
+    input, select, textarea {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); }
+
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+    button.btn {
+      padding: 10px 20px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button.btn:hover { background: var(--primary-hover); }
+    button.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .result {
+      margin-top: 20px;
+      padding: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 13px;
+      line-height: 1.7;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+
+    .result h3 { font-size: 14px; margin-bottom: 8px; color: var(--primary); }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .badge-green { background: rgba(34,197,94,0.15); color: var(--green); }
+    .badge-yellow { background: rgba(234,179,8,0.15); color: var(--yellow); }
+    .badge-red { background: rgba(239,68,68,0.15); color: var(--red); }
+    .badge-purple { background: rgba(168,85,247,0.15); color: var(--purple); }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-msg { color: var(--text-muted); font-size: 13px; margin-top: 16px; }
+
+    /* Vault Cards */
+    .vault-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 8px; }
+
+    .vault-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      transition: border-color 0.2s;
+    }
+
+    .vault-card:hover { border-color: var(--primary); }
+
+    .vault-card h3 { font-size: 16px; margin-bottom: 4px; }
+    .vault-card .vault-desc { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5; }
+
+    .vault-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .vault-stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .vault-stat-value { font-size: 18px; font-weight: 700; color: var(--green); }
+    .vault-stat-value.risk { font-size: 14px; }
+
+    .composition-bar {
+      display: flex;
+      height: 8px;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+
+    .composition-segment { transition: width 0.3s; }
+
+    .composition-legend { display: flex; flex-wrap: wrap; gap: 8px; }
+    .composition-legend span {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    /* Portfolio */
+    .portfolio-summary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .summary-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      text-align: center;
+    }
+
+    .summary-card .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
+    .summary-card .value { font-size: 24px; font-weight: 700; }
+    .summary-card .value.green { color: var(--green); }
+
+    /* Chart */
+    .chart-container {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-top: 16px;
+    }
+
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .chart-header h3 { font-size: 14px; }
+
+    .chart-tabs { display: flex; gap: 8px; }
+    .chart-tabs button {
+      padding: 4px 12px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-muted);
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .chart-tabs button.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+    /* Table */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+    }
+
+    .data-table th, .data-table td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+
+    .data-table th {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    /* Onboarding flow */
+    .onboarding-step {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    .onboarding-step h3 {
+      font-size: 14px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .step-number {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: white;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    @media (max-width: 768px) {
+      .vault-cards { grid-template-columns: 1fr; }
+      .portfolio-summary { grid-template-columns: 1fr; }
+      .row { grid-template-columns: 1fr; }
+      .row-3 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Complr Vault</h1>
+  <span>Regulated Yield Platform</span>
+  <span class="demo-badge">Investor Demo</span>
+</header>
+
+<nav>
+  <button class="active" onclick="showTab('strategies')">Strategies</button>
+  <button onclick="showTab('portfolio')">Portfolio</button>
+  <button onclick="showTab('performance')">Performance</button>
+  <button onclick="showTab('deposit')">Deposit / Withdraw</button>
+  <button onclick="showTab('onboarding')">Investor Onboarding</button>
+</nav>
+
+<!-- Tab 1: Strategies -->
+<div id="tab-strategies" class="panel active">
+  <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px">Compliance-embedded yield vaults with multi-jurisdiction regulatory coverage across MAS, SFC, and FSA.</p>
+  <div id="strategies-container" class="vault-cards">
+    <div class="loading-msg"><span class="spinner"></span>Loading strategies...</div>
+  </div>
+</div>
+
+<!-- Tab 2: Portfolio -->
+<div id="tab-portfolio" class="panel">
+  <div class="form-group" style="max-width:300px;margin-bottom:20px">
+    <label>Select Investor</label>
+    <select id="portfolio-investor" onchange="loadPortfolio()">
+      <option value="">-- Select investor --</option>
+    </select>
+  </div>
+  <div id="portfolio-container"></div>
+</div>
+
+<!-- Tab 3: Performance -->
+<div id="tab-performance" class="panel">
+  <div class="row" style="margin-bottom:16px">
+    <div class="form-group">
+      <label>Vault</label>
+      <select id="perf-vault" onchange="loadPerformance()">
+        <option value="conservative">Conservative Yield</option>
+        <option value="balanced">Balanced Yield</option>
+        <option value="growth">Growth Yield</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Period</label>
+      <select id="perf-days" onchange="loadPerformance()">
+        <option value="90">90 Days</option>
+        <option value="30">30 Days</option>
+        <option value="7">7 Days</option>
+      </select>
+    </div>
+  </div>
+  <div id="perf-container" class="chart-container">
+    <div class="loading-msg"><span class="spinner"></span>Loading performance data...</div>
+  </div>
+</div>
+
+<!-- Tab 4: Deposit/Withdraw -->
+<div id="tab-deposit" class="panel">
+  <div class="row" style="margin-bottom:20px">
+    <div class="onboarding-step">
+      <h3>Deposit</h3>
+      <div class="form-group">
+        <label>Investor</label>
+        <select id="dep-investor"></select>
+      </div>
+      <div class="form-group">
+        <label>Vault Strategy</label>
+        <select id="dep-vault">
+          <option value="conservative">Conservative (3.8% APY, min $1,000)</option>
+          <option value="balanced">Balanced (4.3% APY, min $5,000)</option>
+          <option value="growth">Growth (4.8% APY, min $10,000)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Amount (USDC)</label>
+        <input id="dep-amount" type="number" value="10000" min="1000">
+      </div>
+      <button class="btn" onclick="makeDeposit()">Deposit</button>
+      <div id="dep-result"></div>
+    </div>
+
+    <div class="onboarding-step">
+      <h3>Withdraw</h3>
+      <div class="form-group">
+        <label>Investor</label>
+        <select id="wdr-investor"></select>
+      </div>
+      <div class="form-group">
+        <label>Vault Strategy</label>
+        <select id="wdr-vault">
+          <option value="conservative">Conservative Yield</option>
+          <option value="balanced">Balanced Yield</option>
+          <option value="growth">Growth Yield</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Shares</label>
+        <input id="wdr-shares" type="number" value="100" min="1" step="0.0001">
+      </div>
+      <button class="btn" onclick="makeWithdrawal()">Withdraw</button>
+      <div id="wdr-result"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Tab 5: Investor Onboarding -->
+<div id="tab-onboarding" class="panel">
+  <div class="onboarding-step">
+    <h3><span class="step-number">1</span> Register Investor</h3>
+    <div class="row">
+      <div class="form-group">
+        <label>Full Name</label>
+        <input id="reg-name" value="Nakamura Yuki">
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input id="reg-email" value="nakamura@example.jp">
+      </div>
+    </div>
+    <div class="row">
+      <div class="form-group">
+        <label>Jurisdiction</label>
+        <select id="reg-jurisdiction">
+          <option value="MAS">MAS (Singapore)</option>
+          <option value="SFC">SFC (Hong Kong)</option>
+          <option value="FSA" selected>FSA (Japan)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Accredited Investor</label>
+        <select id="reg-accredited">
+          <option value="true">Yes</option>
+          <option value="false">No</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn" onclick="registerInvestor()">Register</button>
+    <div id="reg-result"></div>
+  </div>
+
+  <div class="onboarding-step">
+    <h3><span class="step-number">2</span> Compliance Screening</h3>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">Run KYC and sanctions screening using the Complr compliance engine. Select a registered investor below.</p>
+    <div class="form-group" style="max-width:300px">
+      <label>Investor</label>
+      <select id="screen-investor"></select>
+    </div>
+    <button class="btn" onclick="screenInvestor()">Run Screening</button>
+    <div id="screen-result"></div>
+  </div>
+
+  <div class="onboarding-step">
+    <h3><span class="step-number">3</span> Registered Investors</h3>
+    <div id="investors-list">
+      <div class="loading-msg"><span class="spinner"></span>Loading investors...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const COLORS = ['#3b82f6', '#22c55e', '#eab308', '#ef4444', '#a855f7', '#06b6d4'];
+
+  function showTab(name) {
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    event.target.classList.add('active');
+
+    if (name === 'strategies') loadStrategies();
+    if (name === 'performance') loadPerformance();
+    if (name === 'onboarding') loadInvestors();
+  }
+
+  function showLoading(el, msg) {
+    el.innerHTML = '<div class="loading-msg"><span class="spinner"></span>' + msg + '</div>';
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
+  }
+
+  function fmt(n) { return '$' + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+  async function apiGet(path) {
+    const res = await fetch('/vault' + path);
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  }
+
+  async function apiPost(path, body) {
+    const res = await fetch('/vault' + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: 'Request failed' }));
+      throw new Error(data.error || 'Request failed');
+    }
+    return res.json();
+  }
+
+  function riskBadge(level) {
+    const cls = level === 'low' ? 'badge-green' : level === 'medium' ? 'badge-yellow' : 'badge-red';
+    return '<span class="badge ' + cls + '">' + level + '</span>';
+  }
+
+  function statusBadge(status) {
+    const cls = status === 'approved' || status === 'compliant' ? 'badge-green' : status === 'pending' ? 'badge-yellow' : 'badge-red';
+    return '<span class="badge ' + cls + '">' + status + '</span>';
+  }
+
+  // ─── Strategies Tab ─────────────────────────────────────────────
+
+  async function loadStrategies() {
+    try {
+      const strategies = await apiGet('/strategies');
+      const container = document.getElementById('strategies-container');
+      container.innerHTML = strategies.map(s => {
+        const compBars = s.composition.map((c, i) =>
+          '<div class="composition-segment" style="width:' + (c.weight*100) + '%;background:' + COLORS[i] + '"></div>'
+        ).join('');
+        const legend = s.composition.map((c, i) =>
+          '<span><span class="legend-dot" style="background:' + COLORS[i] + '"></span>' + c.asset + ' ' + (c.weight*100) + '%</span>'
+        ).join('');
+
+        return '<div class="vault-card">' +
+          '<h3>' + escapeHtml(s.name) + '</h3>' +
+          '<div class="vault-desc">' + escapeHtml(s.description) + '</div>' +
+          '<div class="vault-stats">' +
+            '<div><div class="vault-stat-label">Target APY</div><div class="vault-stat-value">' + s.targetApy + '%</div></div>' +
+            '<div><div class="vault-stat-label">Current APY</div><div class="vault-stat-value">' + s.currentApy.toFixed(1) + '%</div></div>' +
+            '<div><div class="vault-stat-label">Risk</div><div class="vault-stat-value risk">' + riskBadge(s.riskLevel) + '</div></div>' +
+            '<div><div class="vault-stat-label">Min Deposit</div><div class="vault-stat-value risk">' + fmt(s.minDeposit) + '</div></div>' +
+          '</div>' +
+          '<div class="composition-bar">' + compBars + '</div>' +
+          '<div class="composition-legend">' + legend + '</div>' +
+          (s.accreditedOnly ? '<div style="margin-top:12px;font-size:11px;color:var(--yellow)">Accredited investors only</div>' : '') +
+        '</div>';
+      }).join('');
+    } catch (e) {
+      document.getElementById('strategies-container').innerHTML =
+        '<div style="color:var(--red)">Error loading strategies: ' + escapeHtml(e.message) + '</div>';
+    }
+  }
+
+  // ─── Portfolio Tab ──────────────────────────────────────────────
+
+  async function loadPortfolio() {
+    const investorId = document.getElementById('portfolio-investor').value;
+    const container = document.getElementById('portfolio-container');
+    if (!investorId) { container.innerHTML = ''; return; }
+
+    showLoading(container, 'Loading portfolio...');
+    try {
+      const data = await apiGet('/portfolio/' + investorId);
+      let html = '<div class="portfolio-summary">' +
+        '<div class="summary-card"><div class="label">Total Value</div><div class="value green">' + fmt(data.totalValue) + '</div></div>' +
+        '<div class="summary-card"><div class="label">Cost Basis</div><div class="value">' + fmt(data.totalCostBasis) + '</div></div>' +
+        '<div class="summary-card"><div class="label">Yield Earned</div><div class="value green">' + fmt(data.totalYieldEarned) + '</div></div>' +
+      '</div>';
+
+      if (data.holdings.length === 0) {
+        html += '<div style="color:var(--text-muted);text-align:center;padding:40px">No holdings yet. Make a deposit to get started.</div>';
+      } else {
+        // Allocation pie chart (CSS)
+        const total = data.holdings.reduce((s, h) => s + h.currentValue, 0);
+        let cumPct = 0;
+        const gradientStops = data.holdings.map((h, i) => {
+          const pct = total > 0 ? (h.currentValue / total * 100) : 0;
+          const start = cumPct;
+          cumPct += pct;
+          return COLORS[i] + ' ' + start + '% ' + cumPct + '%';
+        }).join(', ');
+
+        html += '<div style="display:flex;gap:24px;align-items:center;margin-bottom:24px">';
+        html += '<div style="width:120px;height:120px;border-radius:50%;background:conic-gradient(' + gradientStops + ');flex-shrink:0"></div>';
+        html += '<div>' + data.holdings.map((h, i) =>
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
+            '<span class="legend-dot" style="background:' + COLORS[i] + '"></span>' +
+            '<span style="font-size:13px">' + escapeHtml(h.vaultName) + ' — ' + fmt(h.currentValue) + '</span>' +
+          '</div>'
+        ).join('') + '</div>';
+        html += '</div>';
+
+        // Holdings table
+        html += '<table class="data-table"><thead><tr>' +
+          '<th>Vault</th><th>Shares</th><th>Value</th><th>Cost Basis</th><th>Gain/Loss</th><th>Yield</th>' +
+        '</tr></thead><tbody>';
+        for (const h of data.holdings) {
+          const gainColor = h.unrealizedGain >= 0 ? 'var(--green)' : 'var(--red)';
+          html += '<tr>' +
+            '<td>' + escapeHtml(h.vaultName) + '</td>' +
+            '<td>' + h.shares.toFixed(4) + '</td>' +
+            '<td>' + fmt(h.currentValue) + '</td>' +
+            '<td>' + fmt(h.costBasis) + '</td>' +
+            '<td style="color:' + gainColor + '">' + fmt(h.unrealizedGain) + '</td>' +
+            '<td style="color:var(--green)">' + fmt(h.yieldEarned) + '</td>' +
+          '</tr>';
+        }
+        html += '</tbody></table>';
+      }
+
+      // Generate report button
+      html += '<div style="margin-top:20px"><button class="btn" onclick="generateReport(\'' + investorId + '\')">Generate Monthly Report</button></div>';
+      html += '<div id="report-result"></div>';
+
+      container.innerHTML = html;
+    } catch (e) {
+      container.innerHTML = '<div style="color:var(--red)">Error: ' + escapeHtml(e.message) + '</div>';
+    }
+  }
+
+  async function generateReport(investorId) {
+    const el = document.getElementById('report-result');
+    showLoading(el, 'Generating report...');
+    try {
+      const r = await apiGet('/reports/' + investorId);
+      let html = '<div class="result">';
+      html += '<h3>Monthly Report — ' + escapeHtml(r.investorName) + '</h3>';
+      html += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">' +
+        'Period: ' + r.reportPeriod.start + ' to ' + r.reportPeriod.end +
+        ' | Compliance: ' + statusBadge(r.complianceStatus) + '</div>';
+
+      html += '<div class="portfolio-summary" style="margin-bottom:16px">' +
+        '<div class="summary-card"><div class="label">Total Value</div><div class="value green">' + fmt(r.totalValue) + '</div></div>' +
+        '<div class="summary-card"><div class="label">Unrealized Gain</div><div class="value">' + fmt(r.totalUnrealizedGain) + '</div></div>' +
+        '<div class="summary-card"><div class="label">Yield Earned</div><div class="value green">' + fmt(r.totalYieldEarned) + '</div></div>' +
+      '</div>';
+
+      html += '<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-top:12px">';
+      html += '<h4 style="font-size:13px;color:var(--primary);margin-bottom:8px">Tax Summary (' + r.taxSummary.jurisdiction + ')</h4>';
+      html += '<div style="font-size:13px">Rate: ' + escapeHtml(r.taxSummary.applicableRate) + '</div>';
+      html += '<div style="font-size:13px">Taxable Gains: ' + fmt(r.taxSummary.taxableGains) + '</div>';
+      html += '<div style="font-size:12px;color:var(--text-muted);margin-top:8px">' + escapeHtml(r.taxSummary.notes) + '</div>';
+      html += '</div></div>';
+
+      el.innerHTML = html;
+    } catch (e) {
+      el.innerHTML = '<div style="color:var(--red)">Error: ' + escapeHtml(e.message) + '</div>';
+    }
+  }
+
+  // ─── Performance Tab ────────────────────────────────────────────
+
+  async function loadPerformance() {
+    const vaultId = document.getElementById('perf-vault').value;
+    const days = document.getElementById('perf-days').value;
+    const container = document.getElementById('perf-container');
+    showLoading(container, 'Loading performance data...');
+
+    try {
+      const data = await apiGet('/performance/' + vaultId + '?days=' + days);
+      if (!data.length) {
+        container.innerHTML = '<div style="color:var(--text-muted)">No data</div>';
+        return;
+      }
+
+      const navs = data.map(d => d.nav);
+      const minNav = Math.min(...navs);
+      const maxNav = Math.max(...navs);
+      const range = maxNav - minNav || 0.01;
+
+      const W = 1000;
+      const H = 300;
+      const padding = 40;
+      const chartW = W - padding * 2;
+      const chartH = H - padding * 2;
+
+      // Build SVG path
+      const points = data.map((d, i) => {
+        const x = padding + (i / (data.length - 1)) * chartW;
+        const y = padding + chartH - ((d.nav - minNav) / range) * chartH;
+        return { x, y, date: d.date, nav: d.nav, ret: d.dailyReturn };
+      });
+
+      const pathD = points.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ');
+
+      // Area fill
+      const areaD = pathD + ' L' + points[points.length-1].x.toFixed(1) + ',' + (padding + chartH) + ' L' + points[0].x.toFixed(1) + ',' + (padding + chartH) + ' Z';
+
+      // Grid lines
+      const gridLines = [];
+      const ySteps = 5;
+      for (let i = 0; i <= ySteps; i++) {
+        const y = padding + (i / ySteps) * chartH;
+        const val = maxNav - (i / ySteps) * range;
+        gridLines.push('<line x1="' + padding + '" y1="' + y + '" x2="' + (W-padding) + '" y2="' + y + '" stroke="' + 'rgba(30,45,61,0.5)' + '" stroke-width="1"/>');
+        gridLines.push('<text x="' + (padding - 8) + '" y="' + (y + 4) + '" fill="#94a3b8" font-size="10" text-anchor="end">' + val.toFixed(4) + '</text>');
+      }
+
+      // X-axis labels
+      const xLabels = [];
+      const labelInterval = Math.max(1, Math.floor(data.length / 6));
+      for (let i = 0; i < data.length; i += labelInterval) {
+        const x = padding + (i / (data.length - 1)) * chartW;
+        const label = data[i].date.slice(5); // MM-DD
+        xLabels.push('<text x="' + x + '" y="' + (H - 5) + '" fill="#94a3b8" font-size="10" text-anchor="middle">' + label + '</text>');
+      }
+
+      const startNav = data[0].nav;
+      const endNav = data[data.length - 1].nav;
+      const totalReturn = ((endNav - startNav) / startNav * 100).toFixed(2);
+      const annualized = ((endNav / startNav) ** (365 / data.length) - 1) * 100;
+
+      let html = '<div class="chart-header">';
+      html += '<h3>NAV Performance</h3>';
+      html += '<div style="font-size:13px">';
+      html += '<span style="color:var(--green);font-weight:600">+' + totalReturn + '%</span>';
+      html += '<span style="color:var(--text-muted);margin-left:12px">APY: ' + annualized.toFixed(1) + '%</span>';
+      html += '</div></div>';
+
+      html += '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto">';
+      html += gridLines.join('');
+      html += xLabels.join('');
+      html += '<defs><linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">';
+      html += '<stop offset="0%" stop-color="#3b82f6" stop-opacity="0.3"/>';
+      html += '<stop offset="100%" stop-color="#3b82f6" stop-opacity="0.02"/>';
+      html += '</linearGradient></defs>';
+      html += '<path d="' + areaD + '" fill="url(#areaGrad)"/>';
+      html += '<path d="' + pathD + '" fill="none" stroke="#3b82f6" stroke-width="2"/>';
+      // End dot
+      const last = points[points.length - 1];
+      html += '<circle cx="' + last.x.toFixed(1) + '" cy="' + last.y.toFixed(1) + '" r="4" fill="#3b82f6"/>';
+      html += '</svg>';
+
+      container.innerHTML = html;
+    } catch (e) {
+      container.innerHTML = '<div style="color:var(--red)">Error: ' + escapeHtml(e.message) + '</div>';
+    }
+  }
+
+  // ─── Deposit/Withdraw ───────────────────────────────────────────
+
+  async function makeDeposit() {
+    const el = document.getElementById('dep-result');
+    showLoading(el, 'Processing deposit...');
+    try {
+      const result = await apiPost('/deposit', {
+        investorId: document.getElementById('dep-investor').value,
+        vaultId: document.getElementById('dep-vault').value,
+        amount: Number(document.getElementById('dep-amount').value),
+      });
+      el.innerHTML = '<div class="result" style="color:var(--green)">' +
+        'Deposit successful! ' + fmt(result.amount) + ' → ' + result.shares.toFixed(4) + ' shares at NAV ' + result.nav.toFixed(4) +
+        '<br>ID: ' + result.id + '</div>';
+    } catch (e) {
+      el.innerHTML = '<div class="result" style="color:var(--red)">Error: ' + escapeHtml(e.message) + '</div>';
+    }
+  }
+
+  async function makeWithdrawal() {
+    const el = document.getElementById('wdr-result');
+    showLoading(el, 'Processing withdrawal...');
+    try {
+      const result = await apiPost('/withdraw', {
+        investorId: document.getElementById('wdr-investor').value,
+        vaultId: document.getElementById('wdr-vault').value,
+        shares: Number(document.getElementById('wdr-shares').value),
+      });
+      el.innerHTML = '<div class="result" style="color:var(--green)">' +
+        'Withdrawal successful! ' + result.shares.toFixed(4) + ' shares → ' + fmt(result.amount) + ' at NAV ' + result.nav.toFixed(4) +
+        '<br>ID: ' + result.id + '</div>';
+    } catch (e) {
+      el.innerHTML = '<div class="result" style="color:var(--red)">Error: ' + escapeHtml(e.message) + '</div>';
+    }
+  }
+
+  // ─── Onboarding Tab ─────────────────────────────────────────────
+
+  async function registerInvestor() {
+    const el = document.getElementById('reg-result');
+    showLoading(el, 'Registering investor...');
+    try {
+      const investor = await apiPost('/investors/register', {
+        name: document.getElementById('reg-name').value,
+        email: document.getElementById('reg-email').value,
+        jurisdiction: document.getElementById('reg-jurisdiction').value,
+        accredited: document.getElementById('reg-accredited').value === 'true',
+      });
+      el.innerHTML = '<div class="result" style="color:var(--green)">' +
+        'Registered: ' + escapeHtml(investor.name) + ' (ID: ' + investor.id + ')' +
+        '<br>KYC Status: ' + statusBadge(investor.kycStatus) +
+        '<br>Next step: Run compliance screening below</div>';
+      await loadInvestors();
+    } catch (e) {
+      el.innerHTML = '<div class="result" style="color:var(--red)">Error: ' + escapeHtml(e.message) + '</div>';
+    }
+  }
+
+  async function screenInvestor() {
+    const id = document.getElementById('screen-investor').value;
+    if (!id) return;
+    const el = document.getElementById('screen-result');
+    showLoading(el, 'Running KYC and sanctions screening...');
+    try {
+      const result = await apiPost('/investors/' + id + '/screen', {});
+      el.innerHTML = '<div class="result">' +
+        '<h3>Screening Complete</h3>' +
+        '<div style="margin-top:8px">Name: ' + escapeHtml(result.name) + '</div>' +
+        '<div>KYC Status: ' + statusBadge(result.kycStatus) + '</div>' +
+        '<div>Sanctions Cleared: ' + (result.sanctionsCleared ? '<span style="color:var(--green)">Yes</span>' : '<span style="color:var(--red)">No</span>') + '</div>' +
+        '<div>Risk Rating: ' + (result.riskRating ? riskBadge(result.riskRating) : 'N/A') + '</div>' +
+        '</div>';
+      await loadInvestors();
+    } catch (e) {
+      el.innerHTML = '<div class="result" style="color:var(--red)">Error: ' + escapeHtml(e.message) + '</div>';
+    }
+  }
+
+  async function loadInvestors() {
+    try {
+      const investors = await apiGet('/investors');
+      const listEl = document.getElementById('investors-list');
+
+      if (!investors.length) {
+        listEl.innerHTML = '<div style="color:var(--text-muted)">No investors registered yet.</div>';
+        return;
+      }
+
+      let html = '<table class="data-table"><thead><tr>' +
+        '<th>Name</th><th>Email</th><th>Jurisdiction</th><th>Accredited</th><th>KYC</th><th>Sanctions</th><th>Risk</th>' +
+      '</tr></thead><tbody>';
+      for (const inv of investors) {
+        html += '<tr>' +
+          '<td>' + escapeHtml(inv.name) + '</td>' +
+          '<td>' + escapeHtml(inv.email) + '</td>' +
+          '<td>' + inv.jurisdiction + '</td>' +
+          '<td>' + (inv.accredited ? 'Yes' : 'No') + '</td>' +
+          '<td>' + statusBadge(inv.kycStatus) + '</td>' +
+          '<td>' + (inv.sanctionsCleared ? '<span style="color:var(--green)">Cleared</span>' : '<span style="color:var(--yellow)">Pending</span>') + '</td>' +
+          '<td>' + (inv.riskRating ? riskBadge(inv.riskRating) : '-') + '</td>' +
+        '</tr>';
+      }
+      html += '</tbody></table>';
+      listEl.innerHTML = html;
+
+      // Populate all investor selects
+      const options = investors.map(inv => '<option value="' + inv.id + '">' + escapeHtml(inv.name) + ' (' + inv.jurisdiction + ')</option>').join('');
+      for (const sel of ['portfolio-investor', 'dep-investor', 'wdr-investor', 'screen-investor']) {
+        const el = document.getElementById(sel);
+        const currentVal = el.value;
+        if (sel === 'portfolio-investor') {
+          el.innerHTML = '<option value="">-- Select investor --</option>' + options;
+        } else {
+          el.innerHTML = options;
+        }
+        if (currentVal) el.value = currentVal;
+      }
+    } catch (e) {
+      document.getElementById('investors-list').innerHTML =
+        '<div style="color:var(--red)">Error: ' + escapeHtml(e.message) + '</div>';
+    }
+  }
+
+  // ─── Init ───────────────────────────────────────────────────────
+  loadStrategies();
+  loadInvestors();
+</script>
+</body>
+</html>
