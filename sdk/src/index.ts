@@ -14,4 +14,8 @@ export type {
   UsageRecord,
   ComplrClientConfig,
   ApiError,
+  AuditAction,
+  AuditEvent,
+  AuditQueryParams,
+  AuditQueryResult,
 } from "./types.js";

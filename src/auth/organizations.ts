@@ -1,11 +1,20 @@
 import { randomBytes } from "node:crypto";
+import path from "node:path";
 import type { Organization } from "../types.js";
+import { JsonStore } from "../storage/index.js";
 
 /**
- * In-memory organization manager for multi-tenant isolation.
+ * Organization manager for multi-tenant isolation.
+ * Optionally persists to disk when dataDir is provided.
  */
 export class OrganizationManager {
-  private orgs = new Map<string, Organization>();
+  private orgs: JsonStore<Organization>;
+
+  constructor(dataDir?: string) {
+    this.orgs = new JsonStore<Organization>(
+      dataDir ? path.join(dataDir, "organizations.json") : undefined
+    );
+  }
 
   /** Create a new organization */
   create(name: string, rateLimit = 300): Organization {

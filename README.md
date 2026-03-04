@@ -12,6 +12,7 @@ Complr is an AI-powered compliance platform covering **MAS** (Singapore), **SFC*
 | **1** | Compliance Middleware SDK | MVP | `@complr/sdk` — npm-installable SDK for exchanges/VASPs |
 | **2** | Regulated Yield Platform | Demo | Compliance-embedded yield vaults for investor pitches |
 | **3** | Product Depth | Complete | Semantic search, OFAC screening, audit logging, multi-tenancy |
+| **3+** | Tests, Persistence, Admin | Complete | Unit tests, file-backed persistence, admin UI, custom screener, SDK audit logs |
 
 ---
 
@@ -118,6 +119,8 @@ All `/api/v1/*` routes require a Bearer token via the `Authorization` header.
 | GET | `/admin/organizations` | List all organizations |
 | GET | `/admin/organizations/:id` | Get organization details |
 | GET | `/admin/audit` | Query all audit logs (with filters) |
+| GET | `/admin` | Admin dashboard UI |
+| POST | `/admin/screen/test` | Test address screening (sanctions only) |
 
 ---
 
@@ -206,6 +209,20 @@ curl localhost:3000/api/v1/audit -H "Authorization: Bearer complr_..."
 
 Set the `AUDIT_LOG_FILE` environment variable to persist logs to a JSON-lines file.
 
+### Custom Sanctions Screener
+
+In addition to the built-in OFAC provider, you can load a custom sanctions list from a local JSON file:
+
+```bash
+# Create a sanctions file
+echo '[{"address":"0xbad","entity":"Bad Actor","program":"CUSTOM","listEntry":"#1"}]' > sanctions.json
+
+# Start with custom screener
+CUSTOM_SANCTIONS_FILE=./sanctions.json ANTHROPIC_API_KEY=sk-ant-... npm run start:server
+```
+
+The custom screener performs exact case-insensitive address matching with confidence 1.0.
+
 ### Multi-Tenant Isolation
 
 Organizations group API keys under a shared identity with aggregate rate limiting.
@@ -225,6 +242,35 @@ curl -X POST localhost:3000/admin/api-keys \
 - Per-key rate limiting still applies, plus an org-wide aggregate limit (separate sliding window)
 - Regulatory documents with an `organizationId` are only visible to that org's keys via semantic search
 - Seed data (no `organizationId`) remains visible to everyone
+
+### File-Backed Persistence
+
+Set `COMPLR_DATA_DIR` to persist organizations and API keys across server restarts:
+
+```bash
+COMPLR_DATA_DIR=/tmp/complr-data ANTHROPIC_API_KEY=sk-ant-... npm run start:server
+```
+
+Data is stored as JSON files with atomic writes. Without `COMPLR_DATA_DIR`, everything stays in-memory (backward compatible).
+
+### Admin Dashboard
+
+Open `http://localhost:3000/admin` for a web-based admin UI with 4 tabs:
+
+1. **Organizations** — create and list organizations
+2. **API Keys** — create, list, and revoke API keys
+3. **Audit Log** — filterable, paginated audit event viewer
+4. **Screening** — system health status and test address screening
+
+### Automated Tests
+
+45 unit tests across 7 test files using `node:test` + `tsx`:
+
+```bash
+npm test
+```
+
+Tests cover: TF-IDF search, audit logging, organizations, API keys, OFAC screener, screening registry, and knowledge base.
 
 ---
 
@@ -248,6 +294,7 @@ After starting the server:
 
 - **Phase 0 Web UI**: http://localhost:3000
 - **Phase 2 Vault Dashboard**: http://localhost:3000/vault-demo
+- **Admin Dashboard**: http://localhost:3000/admin
 - **Health Check**: http://localhost:3000/health
 
 ## Architecture
@@ -276,6 +323,7 @@ src/
     wallet-screener.ts              # OFAC + LLM wallet risk screening
     screening-provider.ts           # ScreeningRegistry for pluggable providers
     ofac-screener.ts                # OFAC SDN list fetcher/parser
+    custom-screener.ts              # JSON-file custom sanctions screener
   regulatory/
     analyzer.ts                     # LLM-powered regulatory analysis
     knowledge-base.ts               # Document store with TF-IDF semantic search
@@ -286,8 +334,19 @@ src/
     simulator.ts                    # Vault strategies, NAV, deposit/withdraw
     investor-compliance.ts          # Investor registration and KYC screening
     report-generator.ts             # Monthly investor reports and tax summaries
+  storage/
+    json-store.ts                   # Generic file-backed Map store
   webhooks/
     manager.ts                      # Webhook registration and HMAC-signed delivery
+
+tests/                              # Unit tests (node:test + tsx)
+  vector-search.test.ts             # TF-IDF index tests
+  audit-logger.test.ts              # Audit logger tests
+  organizations.test.ts             # Organization manager tests
+  api-keys.test.ts                  # API key manager tests
+  ofac-screener.test.ts             # OFAC screener tests
+  screening-registry.test.ts        # Screening registry tests
+  knowledge-base.test.ts            # Knowledge base tests
 
 sdk/                                # Standalone SDK package (@complr/sdk)
   src/
@@ -299,6 +358,7 @@ sdk/                                # Standalone SDK package (@complr/sdk)
 public/
   index.html                        # Phase 0 web UI (4 tabs)
   vault.html                        # Phase 2 vault dashboard (5 tabs)
+  admin.html                        # Admin dashboard (4 tabs)
 ```
 
 ## Jurisdictions
@@ -320,7 +380,7 @@ The knowledge base ships with 8 regulatory documents covering:
 ## Design Decisions
 
 - **Zero new npm dependencies** -- uses native `fetch()`, `node:crypto`, inline SVG charts, hand-rolled TF-IDF and CSV parser
-- **In-memory everything** -- all state (API keys, vaults, investors, audit logs, orgs) stored in `Map<string, T>`. Server restart resets. Easy to migrate to a database later
+- **Optional file persistence** -- `COMPLR_DATA_DIR` enables JSON-file persistence for API keys and organizations via `JsonStore<T>`. Without it, everything stays in-memory (backward compat)
 - **SDK is standalone** -- `sdk/` directory with its own `package.json`, duplicates types intentionally for clean package separation
 - **Legacy routes preserved** -- existing web UI at `/` continues to work without auth
 - **Single Express server** -- SDK API (`/api/v1/*`), vault demo (`/vault/*`), and web UI all share one server
@@ -333,6 +393,7 @@ The knowledge base ships with 8 regulatory documents covering:
 npm run build       # Compile TypeScript
 npm run dev         # Watch mode
 npm run typecheck   # Type check without emitting
+npm test            # Run unit tests (45 tests, 7 suites)
 ```
 
 ## License

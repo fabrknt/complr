@@ -10,6 +10,8 @@ import type {
   UsageRecord,
   Jurisdiction,
   ApiError,
+  AuditQueryParams,
+  AuditQueryResult,
 } from "./types.js";
 
 /**
@@ -137,6 +139,22 @@ export class ComplrClient {
   /** Get usage statistics for the current API key */
   async getUsage(): Promise<UsageRecord> {
     return this.get<UsageRecord>("/api/v1/usage");
+  }
+
+  // ─── Audit Logs ─────────────────────────────────────────────────
+
+  /** Query audit logs for the current API key */
+  async getAuditLogs(params?: AuditQueryParams): Promise<AuditQueryResult> {
+    const qs = new URLSearchParams();
+    if (params?.action) qs.set("action", params.action);
+    if (params?.result) qs.set("result", params.result);
+    if (params?.since) qs.set("since", params.since);
+    if (params?.until) qs.set("until", params.until);
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params?.offset !== undefined) qs.set("offset", String(params.offset));
+    const query = qs.toString();
+    const path = `/api/v1/audit${query ? `?${query}` : ""}`;
+    return this.get<AuditQueryResult>(path);
   }
 
   // ─── HTTP Layer ───────────────────────────────────────────────────

@@ -125,3 +125,53 @@ export interface ApiError {
   limit?: number;
   retryAfterMs?: number;
 }
+
+/** Audit log action categories */
+export type AuditAction =
+  | "query"
+  | "check"
+  | "check.batch"
+  | "screen"
+  | "report"
+  | "analyze"
+  | "api-key.create"
+  | "api-key.revoke"
+  | "webhook.create"
+  | "webhook.delete"
+  | "organization.create"
+  | "vault.deposit"
+  | "vault.withdraw"
+  | "vault.register"
+  | "vault.screen";
+
+/** Audit event logged for every API operation */
+export interface AuditEvent {
+  id: string;
+  timestamp: string;
+  apiKeyId: string | null;
+  organizationId?: string;
+  action: AuditAction;
+  resource: string;
+  method: string;
+  details?: Record<string, unknown>;
+  result: "success" | "error" | "blocked";
+  statusCode: number;
+  ip: string;
+  durationMs: number;
+}
+
+/** Parameters for querying audit logs */
+export interface AuditQueryParams {
+  action?: AuditAction;
+  result?: "success" | "error" | "blocked";
+  since?: string;
+  until?: string;
+  limit?: number;
+  offset?: number;
+}
+
+/** Result of an audit log query */
+export interface AuditQueryResult {
+  events: AuditEvent[];
+  total: number;
+}

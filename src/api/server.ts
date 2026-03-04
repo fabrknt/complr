@@ -9,6 +9,7 @@ import { WebhookManager } from "../webhooks/index.js";
 import { WalletScreener } from "../policy/wallet-screener.js";
 import { ScreeningRegistry } from "../policy/screening-provider.js";
 import { OfacScreener } from "../policy/ofac-screener.js";
+import { CustomScreener } from "../policy/custom-screener.js";
 import { AuditLogger } from "../audit/index.js";
 import type { Jurisdiction, TransactionDetails, AuditAction } from "../types.js";
 
@@ -37,16 +38,27 @@ if (!apiKey) {
 
 // ─── Initialize services ─────────────────────────────────────────────
 
+const dataDir = process.env.COMPLR_DATA_DIR || undefined;
+
 const complr = new Complr({ anthropicApiKey: apiKey });
-const keyManager = new ApiKeyManager();
+const keyManager = new ApiKeyManager(dataDir);
 const webhookManager = new WebhookManager();
-const orgManager = new OrganizationManager();
+const orgManager = new OrganizationManager(dataDir);
 const auditLogger = new AuditLogger();
 
 // Screening registry with OFAC provider
 const screeningRegistry = new ScreeningRegistry();
 const ofacScreener = new OfacScreener();
 screeningRegistry.register(ofacScreener);
+
+// Optional custom sanctions screener
+const customSanctionsFile = process.env.CUSTOM_SANCTIONS_FILE;
+let customScreener: CustomScreener | undefined;
+if (customSanctionsFile) {
+  customScreener = new CustomScreener(customSanctionsFile);
+  screeningRegistry.register(customScreener);
+  customScreener.refresh().catch((err) => console.warn("Custom screener initial refresh failed:", err));
+}
 
 const walletScreener = new WalletScreener(apiKey, "claude-sonnet-4-5-20250929", screeningRegistry);
 
@@ -200,6 +212,11 @@ app.post("/analyze", auditWrap("analyze", async (req, res) => {
 
 // ─── Admin Routes ─────────────────────────────────────────────────────
 
+// Serve admin dashboard
+app.get("/admin", (_req, res) => {
+  res.sendFile(path.join(__dirname, "../../public/admin.html"));
+});
+
 app.post("/admin/api-keys", auditWrap("api-key.create", (req, res) => {
   const { name, rateLimit, organizationId } = req.body as {
     name: string;
@@ -271,6 +288,25 @@ app.get("/admin/audit", (req, res) => {
     offset: req.query.offset ? Number(req.query.offset) : undefined,
   });
   res.json(result);
+});
+
+// ─── Admin Screen Test ──────────────────────────────────────────────
+
+app.post("/admin/screen/test", (req, res) => {
+  const { address, chain } = req.body as { address: string; chain?: string };
+  if (!address) {
+    res.status(400).json({ error: "address is required" });
+    return;
+  }
+  const resolvedChain = chain || "ethereum";
+  const hits = screeningRegistry.screenAll(address, resolvedChain);
+  res.json({
+    address,
+    chain: resolvedChain,
+    sanctioned: hits.length > 0,
+    hits,
+    screenedAt: new Date().toISOString(),
+  });
 });
 
 // ─── V1 API Routes (require API key) ─────────────────────────────────
@@ -496,8 +532,10 @@ app.listen(port, () => {
   console.log(`Documents loaded: ${complr.documentCount}`);
   console.log(`SDK API:  http://localhost:${port}/api/v1/*`);
   console.log(`Vault:    http://localhost:${port}/vault-demo`);
+  console.log(`Admin UI: http://localhost:${port}/admin`);
   console.log(`Admin:    POST http://localhost:${port}/admin/api-keys`);
   console.log(`Audit:    GET  http://localhost:${port}/admin/audit`);
   console.log(`Orgs:     POST http://localhost:${port}/admin/organizations`);
   console.log(`OFAC screening: ${screeningRegistry.providerCount} provider(s) registered`);
+  if (dataDir) console.log(`Data dir: ${dataDir}`);
 });

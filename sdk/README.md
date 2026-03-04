@@ -150,9 +150,19 @@ console.log(usage.totalScreenings);
 Authenticated clients can query their own audit trail:
 
 ```typescript
-// Via the API (SDK client method not yet available — use fetch directly)
-// GET /api/v1/audit?action=check&limit=10
-// Returns { events: AuditEvent[], total: number }
+// Query all audit events
+const logs = await complr.getAuditLogs();
+console.log(logs.total);     // total matching events
+console.log(logs.events);    // AuditEvent[]
+
+// Filter by action, result, and time range
+const filtered = await complr.getAuditLogs({
+  action: "check",
+  result: "success",
+  since: "2025-01-01T00:00:00Z",
+  limit: 10,
+  offset: 0,
+});
 ```
 
 Every API call is logged with: action, resource, result, status code, client IP, and duration.
