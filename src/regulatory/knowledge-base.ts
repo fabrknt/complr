@@ -1,15 +1,17 @@
 import type { Jurisdiction, RegulatoryDocument, RegCategory } from "../types.js";
+import { TfIdfIndex } from "./vector-search.js";
 
 /**
- * In-memory regulatory knowledge base.
- * Phase 0 MVP: stores documents in memory with simple keyword search.
- * Future: vector DB (Pinecone/Weaviate) with embeddings for semantic search.
+ * In-memory regulatory knowledge base with TF-IDF semantic search.
+ * Phase 0 MVP: stores documents in memory with keyword + semantic search.
  */
 export class RegulatoryKnowledgeBase {
   private documents: Map<string, RegulatoryDocument> = new Map();
+  private index = new TfIdfIndex();
 
   add(doc: RegulatoryDocument): void {
     this.documents.set(doc.id, doc);
+    this.index.add(doc.id, `${doc.title} ${doc.content}`);
   }
 
   getById(id: string): RegulatoryDocument | undefined {
@@ -35,6 +37,33 @@ export class RegulatoryKnowledgeBase {
         const inContent = doc.content.toLowerCase().includes(kw);
         if (!inTitle && !inContent) continue;
       }
+      results.push(doc);
+      if (results.length >= limit) break;
+    }
+
+    return results;
+  }
+
+  /** Semantic search using TF-IDF cosine similarity with filtering */
+  semanticSearch(query: string, params?: {
+    jurisdiction?: Jurisdiction;
+    category?: RegCategory;
+    organizationId?: string;
+    limit?: number;
+  }): RegulatoryDocument[] {
+    const limit = params?.limit ?? 5;
+    // Over-fetch from index to account for filtering
+    const overFetch = limit * 5;
+    const hits = this.index.search(query, overFetch);
+
+    const results: RegulatoryDocument[] = [];
+    for (const hit of hits) {
+      const doc = this.documents.get(hit.docId);
+      if (!doc) continue;
+      if (params?.jurisdiction && doc.jurisdiction !== params.jurisdiction) continue;
+      if (params?.category && doc.category !== params.category) continue;
+      // Org visibility: docs with organizationId are only visible to that org
+      if (doc.organizationId && params?.organizationId !== doc.organizationId) continue;
       results.push(doc);
       if (results.length >= limit) break;
     }

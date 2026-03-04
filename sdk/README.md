@@ -54,16 +54,18 @@ console.log(batch.summary);
 
 ### Wallet Screening
 
-LLM-powered wallet risk assessment:
+Two-stage wallet risk assessment -- OFAC SDN list check first, then LLM analysis:
 
 ```typescript
 const screen = await complr.screenWallet("0xabc...", "ethereum", "MAS");
 
-console.log(screen.riskScore);    // 0-100
+console.log(screen.riskScore);    // 0-100 (100 = OFAC exact match)
 console.log(screen.riskLevel);    // "low" | "medium" | "high" | "critical"
 console.log(screen.sanctions);    // true/false
-console.log(screen.flags);        // specific risk flags
+console.log(screen.flags);        // specific risk flags (includes OFAC entity if matched)
 ```
+
+Sanctioned addresses from the OFAC SDN list return immediately with `riskScore: 100` and `riskLevel: "critical"` without calling the LLM.
 
 ### SAR/STR Report Generation
 
@@ -143,6 +145,18 @@ console.log(usage.totalChecks);
 console.log(usage.totalScreenings);
 ```
 
+## Audit Logs
+
+Authenticated clients can query their own audit trail:
+
+```typescript
+// Via the API (SDK client method not yet available — use fetch directly)
+// GET /api/v1/audit?action=check&limit=10
+// Returns { events: AuditEvent[], total: number }
+```
+
+Every API call is logged with: action, resource, result, status code, client IP, and duration.
+
 ## Configuration
 
 ```typescript
@@ -157,9 +171,11 @@ const complr = new ComplrClient({
 ## Built-in Features
 
 - **Automatic retry** with exponential backoff for network errors
-- **Rate limit handling** -- backs off when receiving 429 responses
+- **Rate limit handling** -- backs off when receiving 429 responses (per-key and per-organization limits)
 - **Request timeout** -- configurable per-client
 - **Full TypeScript types** -- all request/response types exported
+- **OFAC sanctions screening** -- sanctioned addresses blocked instantly before LLM analysis
+- **Audit trail** -- every API call logged server-side for compliance
 
 ## Webhook Events
 

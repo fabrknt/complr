@@ -62,7 +62,11 @@ export class Complr {
 
   /** Query the regulatory knowledge base with natural language */
   async query(question: string, jurisdiction: Jurisdiction): Promise<string> {
-    const docs = this.knowledgeBase.byJurisdiction(jurisdiction);
+    // Use semantic search with fallback to jurisdiction-wide
+    let docs = this.knowledgeBase.semanticSearch(question, { jurisdiction, limit: 5 });
+    if (docs.length === 0) {
+      docs = this.knowledgeBase.byJurisdiction(jurisdiction);
+    }
     return this.analyzer.query(question, jurisdiction, docs);
   }
 

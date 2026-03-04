@@ -11,7 +11,7 @@ export class ApiKeyManager {
   private keyIndex = new Map<string, string>();
 
   /** Generate a new API key */
-  generate(name: string, rateLimit = 60): ApiKeyRecord {
+  generate(name: string, rateLimit = 60, organizationId?: string): ApiKeyRecord {
     const id = `ak_${randomBytes(8).toString("hex")}`;
     const rawKey = `complr_${randomBytes(24).toString("hex")}`;
     const keyHash = createHash("sha256").update(rawKey).digest("hex");
@@ -33,6 +33,7 @@ export class ApiKeyManager {
         periodEnd: new Date(Date.now() + 30 * 86400000).toISOString(),
         requestsThisPeriod: 0,
       },
+      organizationId,
     };
 
     this.keys.set(id, record);
@@ -110,5 +111,15 @@ export class ApiKeyManager {
   /** Get a key record by ID */
   getById(id: string): ApiKeyRecord | undefined {
     return this.keys.get(id);
+  }
+
+  /** List all API keys for an organization */
+  listByOrganization(organizationId: string): Array<Omit<ApiKeyRecord, "key"> & { key: string }> {
+    return Array.from(this.keys.values())
+      .filter((r) => r.organizationId === organizationId)
+      .map((r) => ({
+        ...r,
+        key: `complr_...${r.key.slice(-8)}`,
+      }));
   }
 }

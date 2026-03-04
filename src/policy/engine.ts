@@ -68,10 +68,13 @@ export class PolicyEngine {
     tx: TransactionDetails,
     jurisdiction: Jurisdiction
   ): Promise<JurisdictionResult> {
-    // Get relevant regulations for context
-    const docs = this.knowledgeBase.byJurisdiction(jurisdiction);
+    // Build query from transaction details for semantic search
+    const searchQuery = `${tx.chain} ${tx.currency} ${tx.amount} transaction compliance ${jurisdiction}`;
+    let docs = this.knowledgeBase.semanticSearch(searchQuery, { jurisdiction, limit: 5 });
+    if (docs.length === 0) {
+      docs = this.knowledgeBase.byJurisdiction(jurisdiction).slice(0, 5);
+    }
     const context = docs
-      .slice(0, 5)
       .map((d) => `${d.title}: ${d.content.slice(0, 500)}`)
       .join("\n");
 

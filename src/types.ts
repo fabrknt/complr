@@ -11,6 +11,7 @@ export interface RegulatoryDocument {
   content: string;
   language: "en" | "ja" | "zh";
   category: RegCategory;
+  organizationId?: string;
 }
 
 export type RegCategory =
@@ -141,6 +142,7 @@ export interface ApiKeyRecord {
   revokedAt?: string;
   rateLimit: number; // requests per minute
   usage: UsageRecord;
+  organizationId?: string;
 }
 
 /** Usage tracking for an API key */
@@ -319,4 +321,66 @@ export interface InvestorReport {
     applicableRate: string;
     notes: string;
   };
+}
+
+// ─── Phase 3: Product Depth Types ──────────────────────────────────
+
+/** Organization for multi-tenant isolation */
+export interface Organization {
+  id: string;
+  name: string;
+  createdAt: string;
+  rateLimit: number; // aggregate requests per minute across all keys
+}
+
+/** Pluggable wallet screening provider */
+export interface ScreeningProvider {
+  name: string;
+  lastRefreshed?: string;
+  refresh(): Promise<void>;
+  screen(address: string, chain?: string): ScreeningHit[];
+}
+
+/** A hit from a screening provider */
+export interface ScreeningHit {
+  provider: string;
+  matchType: "exact" | "fuzzy";
+  sanctionedEntity: string;
+  program: string;
+  listEntry: string;
+  confidence: number; // 0-1
+}
+
+/** Audit log action categories */
+export type AuditAction =
+  | "query"
+  | "check"
+  | "check.batch"
+  | "screen"
+  | "report"
+  | "analyze"
+  | "api-key.create"
+  | "api-key.revoke"
+  | "webhook.create"
+  | "webhook.delete"
+  | "organization.create"
+  | "vault.deposit"
+  | "vault.withdraw"
+  | "vault.register"
+  | "vault.screen";
+
+/** Audit event logged for every API operation */
+export interface AuditEvent {
+  id: string;
+  timestamp: string;
+  apiKeyId: string | null;
+  organizationId?: string;
+  action: AuditAction;
+  resource: string;
+  method: string;
+  details?: Record<string, unknown>;
+  result: "success" | "error" | "blocked";
+  statusCode: number;
+  ip: string;
+  durationMs: number;
 }

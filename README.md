@@ -11,6 +11,7 @@ Complr is an AI-powered compliance platform covering **MAS** (Singapore), **SFC*
 | **0** | AI Compliance Agent | Complete | Core compliance engine with 4 features |
 | **1** | Compliance Middleware SDK | MVP | `@complr/sdk` — npm-installable SDK for exchanges/VASPs |
 | **2** | Regulated Yield Platform | Demo | Compliance-embedded yield vaults for investor pitches |
+| **3** | Product Depth | Complete | Semantic search, OFAC screening, audit logging, multi-tenancy |
 
 ---
 
@@ -97,21 +98,26 @@ All `/api/v1/*` routes require a Bearer token via the `Authorization` header.
 | POST | `/api/v1/query` | Regulatory knowledge base query |
 | POST | `/api/v1/check` | Single transaction compliance check |
 | POST | `/api/v1/check/batch` | Batch check (up to 50 transactions) |
-| POST | `/api/v1/screen/wallet` | LLM-based wallet risk assessment |
+| POST | `/api/v1/screen/wallet` | Wallet risk assessment (OFAC + LLM) |
 | POST | `/api/v1/report` | SAR/STR report generation |
 | POST | `/api/v1/analyze` | Obligation extraction |
 | POST | `/api/v1/webhooks` | Register a webhook |
 | GET | `/api/v1/webhooks` | List webhooks |
 | DELETE | `/api/v1/webhooks/:id` | Remove a webhook |
 | GET | `/api/v1/usage` | Usage stats for current API key |
+| GET | `/api/v1/audit` | Audit logs scoped to current API key |
 
 ### Admin Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/admin/api-keys` | Generate API key |
+| POST | `/admin/api-keys` | Generate API key (accepts `organizationId`) |
 | GET | `/admin/api-keys` | List all keys |
 | DELETE | `/admin/api-keys/:id` | Revoke key |
+| POST | `/admin/organizations` | Create organization |
+| GET | `/admin/organizations` | List all organizations |
+| GET | `/admin/organizations/:id` | Get organization details |
+| GET | `/admin/audit` | Query all audit logs (with filters) |
 
 ---
 
@@ -164,6 +170,64 @@ Open `http://localhost:3000/vault-demo` after starting the server. 5 interactive
 
 ---
 
+## Phase 3: Product Depth
+
+Four cross-cutting improvements that deepen the platform without adding any npm dependencies or breaking existing APIs.
+
+### Semantic Search (TF-IDF)
+
+The knowledge base now builds a TF-IDF index on every document added. Regulatory queries and compliance checks use cosine-similarity semantic search to find the most relevant documents instead of returning all docs for a jurisdiction. Falls back to jurisdiction-wide search when no results match.
+
+### Pluggable Wallet Screening (OFAC SDN)
+
+Wallet screening is now a two-stage pipeline:
+
+1. **Provider check** -- all registered `ScreeningProvider`s are queried first. An exact match (e.g. OFAC SDN) returns immediately with `riskScore: 100`, `riskLevel: "critical"`.
+2. **LLM analysis** -- if no exact sanctions hit, the LLM screening runs as before, augmented with any provider context.
+
+The built-in `OfacScreener` fetches the US Treasury's SDN address supplement (`add.csv`) and entity list (`sdn.csv`), parses all "Digital Currency Address" entries, and matches by exact normalized address. Data refreshes automatically every 24 hours.
+
+Custom providers can be added by implementing the `ScreeningProvider` interface and registering with the `ScreeningRegistry`.
+
+### Audit Logging
+
+Every API operation is logged to an append-only audit trail. Events capture: API key, organization, action, resource, HTTP method, result (success/error/blocked), status code, client IP, and duration.
+
+```bash
+# Query all audit logs
+curl localhost:3000/admin/audit
+
+# Filter by action and result
+curl "localhost:3000/admin/audit?action=check&result=success&limit=10"
+
+# Authenticated users see only their own logs
+curl localhost:3000/api/v1/audit -H "Authorization: Bearer complr_..."
+```
+
+Set the `AUDIT_LOG_FILE` environment variable to persist logs to a JSON-lines file.
+
+### Multi-Tenant Isolation
+
+Organizations group API keys under a shared identity with aggregate rate limiting.
+
+```bash
+# Create an organization
+curl -X POST localhost:3000/admin/organizations \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Acme Exchange", "rateLimit": 300}'
+
+# Generate an API key under the org
+curl -X POST localhost:3000/admin/api-keys \
+  -H "Content-Type: application/json" \
+  -d '{"name": "acme-prod", "organizationId": "org_..."}'
+```
+
+- Per-key rate limiting still applies, plus an org-wide aggregate limit (separate sliding window)
+- Regulatory documents with an `organizationId` are only visible to that org's keys via semantic search
+- Seed data (no `organizationId`) remains visible to everyone
+
+---
+
 ## Quickstart
 
 ```bash
@@ -198,18 +262,24 @@ src/
   api/
     server.ts                       # Express REST API (legacy + v1 + admin + vault)
     vault-routes.ts                 # Vault demo endpoints
+  audit/
+    logger.ts                       # Append-only audit logger with query/filter
   auth/
     api-keys.ts                     # API key generation, validation, usage tracking
-    middleware.ts                   # Bearer token auth + rate limiting middleware
+    middleware.ts                   # Bearer token auth + per-key/org rate limiting
+    organizations.ts                # Multi-tenant organization manager
   data/
     seed-regulations.ts             # 8 seed regulatory documents
     seed-investors.ts               # 3 demo investors
   policy/
     engine.ts                       # Multi-jurisdiction compliance engine
-    wallet-screener.ts              # LLM-powered wallet risk screening
+    wallet-screener.ts              # OFAC + LLM wallet risk screening
+    screening-provider.ts           # ScreeningRegistry for pluggable providers
+    ofac-screener.ts                # OFAC SDN list fetcher/parser
   regulatory/
     analyzer.ts                     # LLM-powered regulatory analysis
-    knowledge-base.ts               # In-memory document store with search
+    knowledge-base.ts               # Document store with TF-IDF semantic search
+    vector-search.ts                # TF-IDF index with cosine similarity
   reports/
     generator.ts                    # SAR/STR report generation
   vault/
@@ -249,11 +319,13 @@ The knowledge base ships with 8 regulatory documents covering:
 
 ## Design Decisions
 
-- **Zero new npm dependencies** -- uses native `fetch()`, `node:crypto`, inline SVG charts
-- **In-memory everything** -- all state (API keys, vaults, investors) stored in `Map<string, T>`. Server restart resets. Easy to migrate to a database later
+- **Zero new npm dependencies** -- uses native `fetch()`, `node:crypto`, inline SVG charts, hand-rolled TF-IDF and CSV parser
+- **In-memory everything** -- all state (API keys, vaults, investors, audit logs, orgs) stored in `Map<string, T>`. Server restart resets. Easy to migrate to a database later
 - **SDK is standalone** -- `sdk/` directory with its own `package.json`, duplicates types intentionally for clean package separation
 - **Legacy routes preserved** -- existing web UI at `/` continues to work without auth
 - **Single Express server** -- SDK API (`/api/v1/*`), vault demo (`/vault/*`), and web UI all share one server
+- **Audit everything** -- every API route is wrapped with `auditWrap` for automatic logging with zero per-handler boilerplate
+- **Pluggable screening** -- `ScreeningProvider` interface lets you add new sanctions lists, PEP databases, or custom checks alongside the built-in OFAC screener
 
 ## Development
 

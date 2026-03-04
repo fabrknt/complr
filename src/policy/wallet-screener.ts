@@ -1,18 +1,23 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Jurisdiction, WalletScreenResult } from "../types.js";
+import type { ScreeningRegistry } from "./screening-provider.js";
 import { extractJson } from "../utils.js";
 
 /**
- * LLM-powered wallet risk screening.
- * Evaluates wallet addresses for sanctions, risk indicators, and suspicious patterns.
+ * LLM-powered wallet risk screening with optional pluggable provider support.
+ * If a ScreeningRegistry is provided, checks all providers first — an exact
+ * sanctions hit returns immediately with riskScore 100. Otherwise, LLM analysis
+ * is augmented with provider context.
  */
 export class WalletScreener {
   private client: Anthropic;
   private model: string;
+  private registry?: ScreeningRegistry;
 
-  constructor(apiKey: string, model: string) {
+  constructor(apiKey: string, model: string, registry?: ScreeningRegistry) {
     this.client = new Anthropic({ apiKey });
     this.model = model;
+    this.registry = registry;
   }
 
   /** Screen a wallet address for risk factors */
@@ -21,6 +26,41 @@ export class WalletScreener {
     chain: string,
     jurisdiction?: Jurisdiction
   ): Promise<WalletScreenResult> {
+    // Step 1: Check all registered screening providers
+    const providerHits = this.registry?.screenAll(address, chain) ?? [];
+
+    // Step 2: If exact sanctions hit, return immediately
+    const exactHit = providerHits.find((h) => h.matchType === "exact" && h.confidence >= 0.95);
+    if (exactHit) {
+      return {
+        address,
+        chain,
+        riskScore: 100,
+        riskLevel: "critical",
+        flags: [
+          `OFAC sanctioned entity: ${exactHit.sanctionedEntity}`,
+          `Program: ${exactHit.program}`,
+          `List entry: ${exactHit.listEntry}`,
+          ...providerHits
+            .filter((h) => h !== exactHit)
+            .map((h) => `${h.provider}: ${h.sanctionedEntity}`),
+        ],
+        sanctions: true,
+        recommendations: [
+          "Block transaction immediately",
+          "File SAR/STR with relevant authority",
+          "Freeze associated accounts",
+        ],
+        screenedAt: new Date().toISOString(),
+      };
+    }
+
+    // Step 3: LLM analysis, augmented with provider context
+    const providerContext =
+      providerHits.length > 0
+        ? `\n\nScreening provider results:\n${providerHits.map((h) => `- ${h.provider}: ${h.matchType} match for ${h.sanctionedEntity} (confidence: ${h.confidence})`).join("\n")}`
+        : "";
+
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: 1024,
@@ -50,7 +90,7 @@ Return ONLY the JSON object.`,
 - Address: ${address}
 - Chain: ${chain}
 ${jurisdiction ? `- Jurisdiction: ${jurisdiction}` : ""}
-
+${providerContext}
 Perform a thorough risk assessment based on the address characteristics and chain.`,
         },
       ],

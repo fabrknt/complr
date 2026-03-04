@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import type { ApiKeyManager } from "./api-keys.js";
+import type { OrganizationManager } from "./organizations.js";
 import type { ApiKeyRecord } from "../types.js";
 
 /** Extend Express Request with API key info */
@@ -11,14 +12,15 @@ declare global {
   }
 }
 
-/** Rate limit tracker: apiKeyId → [timestamps] */
+/** Rate limit tracker: key → [timestamps] */
 const rateLimitWindows = new Map<string, number[]>();
 
 /**
  * Express middleware for Bearer token authentication.
  * Extracts API key from Authorization header, validates, and attaches to request.
+ * Supports optional organization-level aggregate rate limiting.
  */
-export function apiKeyAuth(keyManager: ApiKeyManager) {
+export function apiKeyAuth(keyManager: ApiKeyManager, orgManager?: OrganizationManager) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
@@ -33,23 +35,46 @@ export function apiKeyAuth(keyManager: ApiKeyManager) {
       return;
     }
 
-    // Rate limiting (sliding window)
     const now = Date.now();
     const windowMs = 60_000; // 1 minute
-    let timestamps = rateLimitWindows.get(record.id) ?? [];
-    timestamps = timestamps.filter((t) => now - t < windowMs);
 
-    if (timestamps.length >= record.rateLimit) {
+    // Per-key rate limiting (sliding window)
+    let keyTimestamps = rateLimitWindows.get(record.id) ?? [];
+    keyTimestamps = keyTimestamps.filter((t) => now - t < windowMs);
+
+    if (keyTimestamps.length >= record.rateLimit) {
       res.status(429).json({
         error: "Rate limit exceeded",
         limit: record.rateLimit,
-        retryAfterMs: windowMs - (now - timestamps[0]),
+        retryAfterMs: windowMs - (now - keyTimestamps[0]),
       });
       return;
     }
 
-    timestamps.push(now);
-    rateLimitWindows.set(record.id, timestamps);
+    // Org-level aggregate rate limiting
+    if (record.organizationId && orgManager) {
+      const org = orgManager.getById(record.organizationId);
+      if (org) {
+        const orgKey = `org:${org.id}`;
+        let orgTimestamps = rateLimitWindows.get(orgKey) ?? [];
+        orgTimestamps = orgTimestamps.filter((t) => now - t < windowMs);
+
+        if (orgTimestamps.length >= org.rateLimit) {
+          res.status(429).json({
+            error: "Organization rate limit exceeded",
+            limit: org.rateLimit,
+            retryAfterMs: windowMs - (now - orgTimestamps[0]),
+          });
+          return;
+        }
+
+        orgTimestamps.push(now);
+        rateLimitWindows.set(orgKey, orgTimestamps);
+      }
+    }
+
+    keyTimestamps.push(now);
+    rateLimitWindows.set(record.id, keyTimestamps);
 
     req.apiKey = record;
     next();
