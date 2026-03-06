@@ -1,9 +1,15 @@
 {
   "name": "Fabrknt Off-Chain Compliance",
   "slug": "fabrknt-offchain-compliance",
-  "version": "1.0.0",
-  "description": "AI-powered cryptocurrency compliance, regulatory screening, and SAR/STR reporting for multi-chain dApps.",
+  "version": "0.1.0",
+  "description": "AI-powered regulatory screening and reporting. Transaction compliance checks, address/wallet screening, SAR/STR generation, and jurisdiction-specific regulatory queries.",
   "author": "Fabrknt",
+  "category": "compliance",
+  "support": {
+    "email": "support@fabrknt.com",
+    "url": "https://fabrknt.com/support"
+  },
+  "repository": "https://github.com/psyto/complr",
   "chains": [
     {
       "id": "solana",
@@ -15,91 +21,88 @@
     }
   ],
   "healthcheck": "/healthcheck",
-  "provision": {
-    "url": "/provision",
-    "method": "POST",
-    "deactivate_url": "/provision/deactivate",
-    "deprovision_url": "/provision"
+  "authentication": "basic",
+  "provisioning": {
+    "provision": "POST /provision",
+    "update": "PUT /provision",
+    "deactivate": "DELETE /provision/deactivate",
+    "deprovision": "DELETE /provision"
   },
   "plans": [
     {
       "id": "starter",
       "name": "Starter",
       "price": 0,
-      "description": "Free tier with essential compliance tools.",
-      "features": [
-        "Regulatory queries",
-        "Single transaction compliance check",
-        "Address screening (OFAC/sanctions)",
-        "3 jurisdictions (MAS, SFC, FSA)"
-      ],
+      "description": "Essential compliance tools for development and testing.",
       "rate_limit": {
         "requests_per_minute": 50
-      }
+      },
+      "features": [
+        "Regulatory queries (MAS, SFC, FSA)",
+        "Single transaction compliance check",
+        "Address screening (OFAC/sanctions)"
+      ]
     },
     {
       "id": "pro",
       "name": "Pro",
-      "price": 99,
+      "price": 49,
       "description": "Full compliance suite for production use.",
+      "rate_limit": {
+        "requests_per_minute": 200
+      },
       "features": [
-        "Everything in Starter",
+        "All Starter features",
         "Batch transaction compliance checks (up to 50)",
         "SAR/STR report generation",
         "Wallet risk screening",
         "Batch address screening (up to 100)",
-        "Webhook notifications",
         "Priority support"
-      ],
-      "rate_limit": {
-        "requests_per_minute": 200
-      }
+      ]
     }
   ],
-  "api": {
-    "endpoints": [
-      {
-        "method": "POST",
-        "path": "/v1/check",
-        "description": "Single transaction compliance check",
-        "plans": ["starter", "pro"]
-      },
-      {
-        "method": "POST",
-        "path": "/v1/check/batch",
-        "description": "Batch transaction compliance check (max 50)",
-        "plans": ["pro"]
-      },
-      {
-        "method": "POST",
-        "path": "/v1/query",
-        "description": "Regulatory query",
-        "plans": ["starter", "pro"]
-      },
-      {
-        "method": "POST",
-        "path": "/v1/report",
-        "description": "SAR/STR report generation",
-        "plans": ["pro"]
-      },
-      {
-        "method": "POST",
-        "path": "/v1/screen/wallet",
-        "description": "Wallet risk screening",
-        "plans": ["pro"]
-      },
-      {
-        "method": "POST",
-        "path": "/v1/screen/address",
-        "description": "Address sanctions screening",
-        "plans": ["starter", "pro"]
-      },
-      {
-        "method": "POST",
-        "path": "/v1/screen/batch",
-        "description": "Batch address screening (max 100)",
-        "plans": ["pro"]
-      }
-    ]
-  }
+  "endpoints": [
+    {
+      "method": "POST",
+      "path": "/v1/check",
+      "description": "Single transaction compliance check",
+      "plan": "starter"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/check/batch",
+      "description": "Batch transaction compliance check (max 50)",
+      "plan": "pro"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/query",
+      "description": "Regulatory query",
+      "plan": "starter"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/report",
+      "description": "SAR/STR report generation",
+      "plan": "pro"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/screen/address",
+      "description": "Address sanctions screening",
+      "plan": "starter"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/screen/batch",
+      "description": "Batch address screening (max 100)",
+      "plan": "pro"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/screen/wallet",
+      "description": "Wallet risk screening",
+      "plan": "pro"
+    }
+  ]
 }
