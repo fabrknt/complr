@@ -1,5 +1,4 @@
-import { describe, it } from "node:test";
-import assert from "node:assert/strict";
+import { describe, it, expect } from "vitest";
 import { ScreeningRegistry } from "../src/policy/screening-provider.js";
 import type { ScreeningProvider, ScreeningHit } from "../src/types.js";
 
@@ -19,13 +18,13 @@ function mockProvider(providerName: string, hits: ScreeningHit[]): ScreeningProv
 describe("ScreeningRegistry", () => {
   it("register increments providerCount", () => {
     const registry = new ScreeningRegistry();
-    assert.equal(registry.providerCount, 0);
+    expect(registry.providerCount).toBe(0);
 
     registry.register(mockProvider("Provider A", []));
-    assert.equal(registry.providerCount, 1);
+    expect(registry.providerCount).toBe(1);
 
     registry.register(mockProvider("Provider B", []));
-    assert.equal(registry.providerCount, 2);
+    expect(registry.providerCount).toBe(2);
   });
 
   it("screenAll aggregates hits from all providers", () => {
@@ -42,22 +41,22 @@ describe("ScreeningRegistry", () => {
     );
 
     const hits = registry.screenAll("0xtest", "ethereum");
-    assert.equal(hits.length, 2);
-    assert.equal(hits[0].provider, "Provider A");
-    assert.equal(hits[1].provider, "Provider B");
+    expect(hits).toHaveLength(2);
+    expect(hits[0].provider).toBe("Provider A");
+    expect(hits[1].provider).toBe("Provider B");
   });
 
   it("screenAll returns [] with no providers", () => {
     const registry = new ScreeningRegistry();
     const hits = registry.screenAll("0xtest", "ethereum");
-    assert.deepEqual(hits, []);
+    expect(hits).toEqual([]);
   });
 
   it("screenAll returns [] when no providers match", () => {
     const registry = new ScreeningRegistry();
     registry.register(mockProvider("Clean Provider", []));
     const hits = registry.screenAll("0xclean", "ethereum");
-    assert.deepEqual(hits, []);
+    expect(hits).toEqual([]);
   });
 
   it("refreshAll calls refresh on all providers", async () => {
@@ -68,7 +67,7 @@ describe("ScreeningRegistry", () => {
     registry.register(p2);
 
     await registry.refreshAll();
-    assert.equal(p1.refreshCalled, true);
-    assert.equal(p2.refreshCalled, true);
+    expect(p1.refreshCalled).toBe(true);
+    expect(p2.refreshCalled).toBe(true);
   });
 });

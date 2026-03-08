@@ -1,18 +1,16 @@
-import { describe, it, beforeEach, afterEach } from "node:test";
-import assert from "node:assert/strict";
+import { describe, it, expect, afterEach } from "vitest";
 import { OfacScreener } from "../src/policy/ofac-screener.js";
 
 describe("OfacScreener", () => {
   it("screen returns [] with no data loaded", () => {
     const screener = new OfacScreener();
     const hits = screener.screen("0xSomeAddress", "ethereum");
-    assert.deepEqual(hits, []);
+    expect(hits).toEqual([]);
   });
 
   it("refresh loads data and screen finds matches", async () => {
     const screener = new OfacScreener();
 
-    // Mock globalThis.fetch to return fake OFAC data
     const originalFetch = globalThis.fetch;
     const sdnCsv = `12345,"BAD ACTOR","individual","CYBER2"\n`;
     const addCsv = `12345,1,"","","","Digital Currency Address - XBT bc1qbadaddress"\n`;
@@ -32,11 +30,11 @@ describe("OfacScreener", () => {
       await screener.refresh();
 
       const hits = screener.screen("bc1qbadaddress", "bitcoin");
-      assert.equal(hits.length, 1);
-      assert.equal(hits[0].provider, "OFAC SDN");
-      assert.equal(hits[0].matchType, "exact");
-      assert.equal(hits[0].sanctionedEntity, "BAD ACTOR");
-      assert.equal(hits[0].confidence, 1.0);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].provider).toBe("OFAC SDN");
+      expect(hits[0].matchType).toBe("exact");
+      expect(hits[0].sanctionedEntity).toBe("BAD ACTOR");
+      expect(hits[0].confidence).toBe(1.0);
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -59,12 +57,11 @@ describe("OfacScreener", () => {
     try {
       await screener.refresh();
 
-      // Query with different case
       const hits = screener.screen("0xabcdef1234", "ethereum");
-      assert.equal(hits.length, 1);
+      expect(hits).toHaveLength(1);
 
       const hitsUpper = screener.screen("0XABCDEF1234", "ethereum");
-      assert.equal(hitsUpper.length, 1);
+      expect(hitsUpper).toHaveLength(1);
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -87,7 +84,7 @@ describe("OfacScreener", () => {
     try {
       await screener.refresh();
       const hits = screener.screen("bc1qunknown", "bitcoin");
-      assert.deepEqual(hits, []);
+      expect(hits).toEqual([]);
     } finally {
       globalThis.fetch = originalFetch;
     }

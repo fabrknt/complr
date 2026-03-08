@@ -1,5 +1,4 @@
-import { describe, it, before, after, beforeEach, afterEach } from "node:test";
-import assert from "node:assert/strict";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import http from "node:http";
 import { createApp } from "../src/api/app.js";
 import { ApiKeyManager } from "../src/auth/api-keys.js";
@@ -20,13 +19,12 @@ function buildTestApp() {
     orgManager,
     auditLogger,
     screeningRegistry,
-    // No complr, webhookManager, walletScreener, ofacScreener — testing without LLM
   });
 
   return { app, keyManager, orgManager, auditLogger, screeningRegistry };
 }
 
-async function fetch(baseUrl: string, path: string, opts: {
+async function fetchJson(baseUrl: string, path: string, opts: {
   method?: string;
   headers?: Record<string, string>;
   body?: unknown;
@@ -65,7 +63,7 @@ describe("API Integration Tests", () => {
   let orgManager: OrganizationManager;
   let originalToken: string | undefined;
 
-  before(async () => {
+  beforeAll(async () => {
     originalToken = process.env.ADMIN_TOKEN;
     process.env.ADMIN_TOKEN = ADMIN_TOKEN;
 
@@ -81,7 +79,7 @@ describe("API Integration Tests", () => {
     baseUrl = `http://127.0.0.1:${addr.port}`;
   });
 
-  after(async () => {
+  afterAll(async () => {
     if (originalToken !== undefined) {
       process.env.ADMIN_TOKEN = originalToken;
     } else {
@@ -95,165 +93,163 @@ describe("API Integration Tests", () => {
   // ─── Health ─────────────────────────────────────────────────────────
 
   it("GET /health returns status ok", async () => {
-    const res = await fetch(baseUrl, "/health");
-    assert.equal(res.status, 200);
+    const res = await fetchJson(baseUrl, "/health");
+    expect(res.status).toBe(200);
     const body = res.body as { status: string };
-    assert.equal(body.status, "ok");
+    expect(body.status).toBe("ok");
   });
 
   // ─── Admin Auth Enforcement ─────────────────────────────────────────
 
   it("POST /admin/api-keys returns 401 without token", async () => {
-    const res = await fetch(baseUrl, "/admin/api-keys", {
+    const res = await fetchJson(baseUrl, "/admin/api-keys", {
       method: "POST",
       body: { name: "test" },
     });
-    assert.equal(res.status, 401);
+    expect(res.status).toBe(401);
   });
 
   it("GET /admin/api-keys returns 401 without token", async () => {
-    const res = await fetch(baseUrl, "/admin/api-keys");
-    assert.equal(res.status, 401);
+    const res = await fetchJson(baseUrl, "/admin/api-keys");
+    expect(res.status).toBe(401);
   });
 
   it("DELETE /admin/api-keys/fake returns 401 without token", async () => {
-    const res = await fetch(baseUrl, "/admin/api-keys/fake", { method: "DELETE" });
-    assert.equal(res.status, 401);
+    const res = await fetchJson(baseUrl, "/admin/api-keys/fake", { method: "DELETE" });
+    expect(res.status).toBe(401);
   });
 
   it("POST /admin/organizations returns 401 without token", async () => {
-    const res = await fetch(baseUrl, "/admin/organizations", {
+    const res = await fetchJson(baseUrl, "/admin/organizations", {
       method: "POST",
       body: { name: "test" },
     });
-    assert.equal(res.status, 401);
+    expect(res.status).toBe(401);
   });
 
   it("GET /admin/organizations returns 401 without token", async () => {
-    const res = await fetch(baseUrl, "/admin/organizations");
-    assert.equal(res.status, 401);
+    const res = await fetchJson(baseUrl, "/admin/organizations");
+    expect(res.status).toBe(401);
   });
 
   it("GET /admin/audit returns 401 without token", async () => {
-    const res = await fetch(baseUrl, "/admin/audit");
-    assert.equal(res.status, 401);
+    const res = await fetchJson(baseUrl, "/admin/audit");
+    expect(res.status).toBe(401);
   });
 
   it("POST /admin/screen/test returns 401 without token", async () => {
-    const res = await fetch(baseUrl, "/admin/screen/test", {
+    const res = await fetchJson(baseUrl, "/admin/screen/test", {
       method: "POST",
       body: { address: "0xabc" },
     });
-    assert.equal(res.status, 401);
+    expect(res.status).toBe(401);
   });
 
   // ─── Admin CRUD with valid token ───────────────────────────────────
 
   it("POST /admin/organizations creates org with valid token", async () => {
-    const res = await fetch(baseUrl, "/admin/organizations", {
+    const res = await fetchJson(baseUrl, "/admin/organizations", {
       method: "POST",
       headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
       body: { name: "Test Org", rateLimit: 100 },
     });
-    assert.equal(res.status, 201);
+    expect(res.status).toBe(201);
     const body = res.body as { id: string; name: string; rateLimit: number };
-    assert.ok(body.id.startsWith("org_"));
-    assert.equal(body.name, "Test Org");
-    assert.equal(body.rateLimit, 100);
+    expect(body.id).toMatch(/^org_/);
+    expect(body.name).toBe("Test Org");
+    expect(body.rateLimit).toBe(100);
   });
 
   it("GET /admin/organizations lists orgs with valid token", async () => {
-    const res = await fetch(baseUrl, "/admin/organizations", {
+    const res = await fetchJson(baseUrl, "/admin/organizations", {
       headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
     });
-    assert.equal(res.status, 200);
+    expect(res.status).toBe(200);
     const body = res.body as Array<{ id: string }>;
-    assert.ok(Array.isArray(body));
-    assert.ok(body.length >= 1);
+    expect(Array.isArray(body)).toBe(true);
+    expect(body.length).toBeGreaterThanOrEqual(1);
   });
 
   it("POST /admin/api-keys creates key with valid token", async () => {
-    const res = await fetch(baseUrl, "/admin/api-keys", {
+    const res = await fetchJson(baseUrl, "/admin/api-keys", {
       method: "POST",
       headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
       body: { name: "Integration Test Key" },
     });
-    assert.equal(res.status, 201);
+    expect(res.status).toBe(201);
     const body = res.body as { id: string; key: string; name: string };
-    assert.ok(body.id.startsWith("ak_"));
-    assert.ok(body.key.startsWith("complr_"));
-    assert.equal(body.name, "Integration Test Key");
+    expect(body.id).toMatch(/^ak_/);
+    expect(body.key).toMatch(/^complr_/);
+    expect(body.name).toBe("Integration Test Key");
   });
 
   it("GET /admin/api-keys lists keys with valid token", async () => {
-    const res = await fetch(baseUrl, "/admin/api-keys", {
+    const res = await fetchJson(baseUrl, "/admin/api-keys", {
       headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
     });
-    assert.equal(res.status, 200);
+    expect(res.status).toBe(200);
     const body = res.body as Array<{ id: string }>;
-    assert.ok(Array.isArray(body));
-    assert.ok(body.length >= 1);
+    expect(Array.isArray(body)).toBe(true);
+    expect(body.length).toBeGreaterThanOrEqual(1);
   });
 
   it("DELETE /admin/api-keys/:id revokes key with valid token", async () => {
-    // Create a key first
-    const createRes = await fetch(baseUrl, "/admin/api-keys", {
+    const createRes = await fetchJson(baseUrl, "/admin/api-keys", {
       method: "POST",
       headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
       body: { name: "To Revoke" },
     });
     const created = createRes.body as { id: string };
 
-    const res = await fetch(baseUrl, `/admin/api-keys/${created.id}`, {
+    const res = await fetchJson(baseUrl, `/admin/api-keys/${created.id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
     });
-    assert.equal(res.status, 200);
+    expect(res.status).toBe(200);
     const body = res.body as { message: string };
-    assert.equal(body.message, "API key revoked");
+    expect(body.message).toBe("API key revoked");
   });
 
   it("POST /admin/screen/test screens address with valid token", async () => {
-    const res = await fetch(baseUrl, "/admin/screen/test", {
+    const res = await fetchJson(baseUrl, "/admin/screen/test", {
       method: "POST",
       headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
       body: { address: "0x1234567890abcdef", chain: "ethereum" },
     });
-    assert.equal(res.status, 200);
+    expect(res.status).toBe(200);
     const body = res.body as { address: string; sanctioned: boolean };
-    assert.equal(body.address, "0x1234567890abcdef");
-    assert.equal(body.sanctioned, false);
+    expect(body.address).toBe("0x1234567890abcdef");
+    expect(body.sanctioned).toBe(false);
   });
 
   // ─── V1 API Auth ───────────────────────────────────────────────────
 
   it("POST /api/v1/query returns 401 without Bearer token", async () => {
-    const res = await fetch(baseUrl, "/api/v1/query", {
+    const res = await fetchJson(baseUrl, "/api/v1/query", {
       method: "POST",
       body: { question: "test", jurisdiction: "MAS" },
     });
-    assert.equal(res.status, 401);
+    expect(res.status).toBe(401);
   });
 
   it("POST /api/v1/query returns 401 with invalid token", async () => {
-    const res = await fetch(baseUrl, "/api/v1/query", {
+    const res = await fetchJson(baseUrl, "/api/v1/query", {
       method: "POST",
       headers: { Authorization: "Bearer complr_invalid_key" },
       body: { question: "test", jurisdiction: "MAS" },
     });
-    assert.equal(res.status, 401);
+    expect(res.status).toBe(401);
   });
 
   it("POST /api/v1/query returns 503 with valid key but no complr", async () => {
-    // Create a real API key
     const record = keyManager.generate("V1 Test Key");
-    const res = await fetch(baseUrl, "/api/v1/query", {
+    const res = await fetchJson(baseUrl, "/api/v1/query", {
       method: "POST",
       headers: { Authorization: `Bearer ${record.key}` },
       body: { question: "test", jurisdiction: "MAS" },
     });
-    assert.equal(res.status, 503);
+    expect(res.status).toBe(503);
     const body = res.body as { error: string };
-    assert.equal(body.error, "Compliance engine not available");
+    expect(body.error).toBe("Compliance engine not available");
   });
 });

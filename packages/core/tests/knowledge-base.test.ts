@@ -1,5 +1,4 @@
-import { describe, it } from "node:test";
-import assert from "node:assert/strict";
+import { describe, it, expect } from "vitest";
 import { RegulatoryKnowledgeBase } from "../src/regulatory/knowledge-base.js";
 import type { RegulatoryDocument } from "../src/types.js";
 
@@ -24,14 +23,14 @@ describe("RegulatoryKnowledgeBase", () => {
     kb.add(doc);
 
     const found = kb.getById("doc_1");
-    assert.ok(found);
-    assert.equal(found.title, "AML Guidelines");
+    expect(found).toBeTruthy();
+    expect(found!.title).toBe("AML Guidelines");
   });
 
   it("getById returns undefined for missing doc", () => {
     const kb = new RegulatoryKnowledgeBase();
     const found = kb.getById("doc_missing");
-    assert.equal(found, undefined);
+    expect(found).toBeUndefined();
   });
 
   it("semanticSearch returns relevant documents", () => {
@@ -41,9 +40,8 @@ describe("RegulatoryKnowledgeBase", () => {
     kb.add(makeDoc({ id: "tax", title: "Tax Reporting", content: "Tax reporting obligations for cryptocurrency gains and income." }));
 
     const results = kb.semanticSearch("anti money laundering KYC");
-    assert.ok(results.length > 0);
-    // The AML doc should be among results
-    assert.ok(results.some((r) => r.id === "aml"));
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.some((r) => r.id === "aml")).toBe(true);
   });
 
   it("org visibility: doc with orgId hidden from others", () => {
@@ -54,12 +52,12 @@ describe("RegulatoryKnowledgeBase", () => {
     // org_alpha can see its own doc
     const alphaResults = kb.semanticSearch("compliance policy", { organizationId: "org_alpha" });
     const alphaIds = alphaResults.map((r) => r.id);
-    assert.ok(alphaIds.includes("private") || alphaResults.length > 0);
+    expect(alphaIds.includes("private") || alphaResults.length > 0).toBe(true);
 
     // org_beta cannot see org_alpha's private doc
     const betaResults = kb.semanticSearch("compliance policy", { organizationId: "org_beta" });
     const betaIds = betaResults.map((r) => r.id);
-    assert.ok(!betaIds.includes("private"));
+    expect(betaIds.includes("private")).toBe(false);
   });
 
   it("public docs visible to all orgs", () => {
@@ -68,7 +66,7 @@ describe("RegulatoryKnowledgeBase", () => {
 
     const results = kb.semanticSearch("anti-money laundering", { organizationId: "org_any" });
     const ids = results.map((r) => r.id);
-    assert.ok(ids.includes("global"));
+    expect(ids).toContain("global");
   });
 
   it("jurisdiction filter works in semanticSearch", () => {
@@ -77,17 +75,17 @@ describe("RegulatoryKnowledgeBase", () => {
     kb.add(makeDoc({ id: "fsa_doc", jurisdiction: "FSA", title: "FSA Regulation", content: "Japan financial services agency compliance requirements." }));
 
     const masResults = kb.semanticSearch("compliance requirements", { jurisdiction: "MAS" });
-    assert.ok(masResults.every((r) => r.jurisdiction === "MAS"));
+    expect(masResults.every((r) => r.jurisdiction === "MAS")).toBe(true);
 
     const fsaResults = kb.semanticSearch("compliance requirements", { jurisdiction: "FSA" });
-    assert.ok(fsaResults.every((r) => r.jurisdiction === "FSA"));
+    expect(fsaResults.every((r) => r.jurisdiction === "FSA")).toBe(true);
   });
 
   it("size returns document count", () => {
     const kb = new RegulatoryKnowledgeBase();
-    assert.equal(kb.size, 0);
+    expect(kb.size).toBe(0);
     kb.add(makeDoc({ id: "a" }));
     kb.add(makeDoc({ id: "b" }));
-    assert.equal(kb.size, 2);
+    expect(kb.size).toBe(2);
   });
 });

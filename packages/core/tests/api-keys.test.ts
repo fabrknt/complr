@@ -1,26 +1,25 @@
-import { describe, it } from "node:test";
-import assert from "node:assert/strict";
+import { describe, it, expect } from "vitest";
 import { ApiKeyManager } from "../src/auth/api-keys.js";
 
 describe("ApiKeyManager", () => {
   it("generate returns key with ak_ prefix id and complr_ prefix key", () => {
     const mgr = new ApiKeyManager();
     const record = mgr.generate("Test Key");
-    assert.ok(record.id.startsWith("ak_"));
-    assert.ok(record.key.startsWith("complr_"));
-    assert.equal(record.name, "Test Key");
+    expect(record.id).toMatch(/^ak_/);
+    expect(record.key).toMatch(/^complr_/);
+    expect(record.name).toBe("Test Key");
   });
 
   it("generate without orgId has undefined organizationId", () => {
     const mgr = new ApiKeyManager();
     const record = mgr.generate("No Org");
-    assert.equal(record.organizationId, undefined);
+    expect(record.organizationId).toBeUndefined();
   });
 
   it("generate with orgId stores organizationId", () => {
     const mgr = new ApiKeyManager();
     const record = mgr.generate("With Org", 60, "org_test123");
-    assert.equal(record.organizationId, "org_test123");
+    expect(record.organizationId).toBe("org_test123");
   });
 
   it("validate returns record for valid key", () => {
@@ -28,15 +27,15 @@ describe("ApiKeyManager", () => {
     const record = mgr.generate("Valid Key");
     const rawKey = record.key;
     const validated = mgr.validate(rawKey);
-    assert.ok(validated);
-    assert.equal(validated.id, record.id);
-    assert.equal(validated.name, "Valid Key");
+    expect(validated).toBeTruthy();
+    expect(validated!.id).toBe(record.id);
+    expect(validated!.name).toBe("Valid Key");
   });
 
   it("validate returns undefined for invalid key", () => {
     const mgr = new ApiKeyManager();
     const validated = mgr.validate("complr_invalid_key_here");
-    assert.equal(validated, undefined);
+    expect(validated).toBeUndefined();
   });
 
   it("validate returns undefined for revoked key", () => {
@@ -45,7 +44,7 @@ describe("ApiKeyManager", () => {
     const rawKey = record.key;
     mgr.revoke(record.id);
     const validated = mgr.validate(rawKey);
-    assert.equal(validated, undefined);
+    expect(validated).toBeUndefined();
   });
 
   it("listByOrganization filters by org", () => {
@@ -55,8 +54,8 @@ describe("ApiKeyManager", () => {
     mgr.generate("Key C", 60, "org_alpha");
 
     const alphaKeys = mgr.listByOrganization("org_alpha");
-    assert.equal(alphaKeys.length, 2);
-    assert.ok(alphaKeys.every((k) => k.organizationId === "org_alpha"));
+    expect(alphaKeys).toHaveLength(2);
+    expect(alphaKeys.every((k) => k.organizationId === "org_alpha")).toBe(true);
   });
 
   it("trackUsage increments counters", () => {
@@ -67,20 +66,20 @@ describe("ApiKeyManager", () => {
     mgr.trackUsage(record.id, "screening");
 
     const usage = mgr.getUsage(record.id);
-    assert.ok(usage);
-    assert.equal(usage.totalRequests, 3);
-    assert.equal(usage.totalChecks, 2);
-    assert.equal(usage.totalScreenings, 1);
+    expect(usage).toBeTruthy();
+    expect(usage!.totalRequests).toBe(3);
+    expect(usage!.totalChecks).toBe(2);
+    expect(usage!.totalScreenings).toBe(1);
   });
 
   it("revoke returns true for existing key", () => {
     const mgr = new ApiKeyManager();
     const record = mgr.generate("To Revoke");
-    assert.equal(mgr.revoke(record.id), true);
+    expect(mgr.revoke(record.id)).toBe(true);
   });
 
   it("revoke returns false for non-existent key", () => {
     const mgr = new ApiKeyManager();
-    assert.equal(mgr.revoke("ak_doesnotexist"), false);
+    expect(mgr.revoke("ak_doesnotexist")).toBe(false);
   });
 });
