@@ -2,6 +2,7 @@ import { RegulatoryKnowledgeBase } from "./regulatory/knowledge-base.js";
 import { RegulatoryAnalyzer } from "./regulatory/analyzer.js";
 import { PolicyEngine } from "./policy/engine.js";
 import { ReportGenerator } from "./reports/generator.js";
+import type { RegulatoryQueryResult } from "./regulatory/confidence.js";
 import type {
   ComplrConfig,
   Jurisdiction,
@@ -70,6 +71,15 @@ export class Complr {
     return this.analyzer.query(question, jurisdiction, docs);
   }
 
+  /** Query with confidence scoring (structured response) */
+  async queryWithConfidence(question: string, jurisdiction: Jurisdiction): Promise<RegulatoryQueryResult> {
+    let docs = this.knowledgeBase.semanticSearch(question, { jurisdiction, limit: 5 });
+    if (docs.length === 0) {
+      docs = this.knowledgeBase.byJurisdiction(jurisdiction);
+    }
+    return this.analyzer.queryWithConfidence(question, jurisdiction, docs, this.config.model);
+  }
+
   /** Extract obligations from a regulatory document */
   async analyzeDocument(
     doc: RegulatoryDocument
@@ -130,5 +140,7 @@ export { detectAddressFormat } from "./types.js";
 
 export { RegulatoryKnowledgeBase } from "./regulatory/index.js";
 export { RegulatoryAnalyzer } from "./regulatory/index.js";
+export { ConfidenceScorer } from "./regulatory/index.js";
+export type { RegulatoryQueryResult, ConfidenceFactor, Citation } from "./regulatory/index.js";
 export { PolicyEngine } from "./policy/index.js";
 export { ReportGenerator } from "./reports/index.js";

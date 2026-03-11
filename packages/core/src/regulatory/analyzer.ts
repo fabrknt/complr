@@ -6,6 +6,8 @@ import type {
   Jurisdiction,
 } from "../types.js";
 import { extractJson } from "../utils.js";
+import { ConfidenceScorer } from "./confidence.js";
+import type { RegulatoryQueryResult } from "./confidence.js";
 
 /**
  * LLM-powered regulatory document analyzer.
@@ -194,6 +196,51 @@ Return ONLY the JSON object.`,
     });
 
     return response.content[0].type === "text" ? response.content[0].text : "";
+  }
+
+  /** Answer a question with confidence scoring and citations */
+  async queryWithConfidence(
+    question: string,
+    jurisdiction: Jurisdiction,
+    context: RegulatoryDocument[],
+    model: string
+  ): Promise<RegulatoryQueryResult> {
+    const contextText = context
+      .map((doc) => `[${doc.title} (${doc.publishedAt})]\n${doc.content}`)
+      .join("\n\n---\n\n");
+
+    const response = await this.client.messages.create({
+      model: this.model,
+      max_tokens: 2048,
+      system: `You are an expert regulatory analyst for ${jurisdiction} (${jurisdictionName(jurisdiction)}). Answer questions about crypto/digital asset compliance using the provided regulatory context.
+
+When answering:
+1. Cite specific document titles when making claims (use their exact titles from the context).
+2. Include specific section numbers, thresholds, and dates where available.
+3. Indicate your certainty level for different parts of the answer (e.g., "clearly stated in...", "appears to require...", "this is ambiguous but...").
+4. Flag any areas where the regulatory text is ambiguous or where multiple interpretations are possible.
+5. If the context doesn't contain enough information to answer fully, explicitly state what is missing.
+
+Be precise and reference source documents by name.`,
+      messages: [
+        {
+          role: "user",
+          content: `Context documents:\n${contextText}\n\nQuestion: ${question}`,
+        },
+      ],
+    });
+
+    const answer =
+      response.content[0].type === "text" ? response.content[0].text : "";
+
+    const scorer = new ConfidenceScorer();
+    return scorer.score({
+      answer,
+      question,
+      jurisdiction,
+      sourceDocs: context,
+      modelUsed: model,
+    });
   }
 }
 

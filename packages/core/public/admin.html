@@ -122,6 +122,7 @@
   <div class="tabs">
     <div class="tab active" data-tab="orgs">Organizations</div>
     <div class="tab" data-tab="keys">API Keys</div>
+    <div class="tab" data-tab="reviews">Review Queue</div>
     <div class="tab" data-tab="audit">Audit Log</div>
     <div class="tab" data-tab="screening">Screening</div>
   </div>
@@ -163,6 +164,73 @@
         <thead><tr><th>ID</th><th>Name</th><th>Key</th><th>Org</th><th>Rate Limit</th><th>Requests</th><th>Status</th><th>Action</th></tr></thead>
         <tbody id="key-table"></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- Review Queue -->
+  <div class="panel" id="panel-reviews">
+    <div class="section">
+      <h2>Review Queue Statistics</h2>
+      <div id="review-stats" class="status-line">Loading...</div>
+    </div>
+    <div class="section">
+      <h2>Pending Reviews</h2>
+      <div class="form-row">
+        <div>
+          <label>Status</label>
+          <select id="review-status">
+            <option value="">All</option>
+            <option value="pending" selected>Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="escalated">Escalated</option>
+          </select>
+        </div>
+        <div>
+          <label>Priority</label>
+          <select id="review-priority">
+            <option value="">All</option>
+            <option value="critical">Critical</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </div>
+        <div>
+          <label>Type</label>
+          <select id="review-type">
+            <option value="">All</option>
+            <option value="check">Check</option>
+            <option value="screen">Screen</option>
+            <option value="report">Report</option>
+          </select>
+        </div>
+        <div><label>&nbsp;</label><button onclick="loadReviews()">Filter</button></div>
+      </div>
+      <table>
+        <thead><tr><th>ID</th><th>Type</th><th>Priority</th><th>Status</th><th>Created</th><th>Details</th><th>Actions</th></tr></thead>
+        <tbody id="review-table"></tbody>
+      </table>
+      <div class="pagination">
+        <button id="review-prev" onclick="reviewPage(-1)" disabled>Prev</button>
+        <span id="review-info">-</span>
+        <button id="review-next" onclick="reviewPage(1)">Next</button>
+      </div>
+    </div>
+    <!-- Review detail modal -->
+    <div id="review-detail" style="display:none; margin-top:1rem; padding:1rem; background:var(--surface); border:1px solid var(--border); border-radius:4px;">
+      <h2>Review Detail</h2>
+      <div id="review-detail-content"></div>
+      <div class="form-row" style="margin-top:1rem;">
+        <div><label>Reviewer ID</label><input id="review-reviewer" placeholder="compliance-officer-1" /></div>
+        <div><label>Notes</label><input id="review-notes" placeholder="Optional notes..." style="width:300px" /></div>
+      </div>
+      <div class="form-row">
+        <button onclick="reviewAction('approve')" style="background:var(--success)">Approve</button>
+        <button onclick="reviewAction('reject')" class="danger">Reject</button>
+        <button onclick="reviewAction('escalate')" style="background:var(--warning); color:#000">Escalate</button>
+        <button onclick="closeReviewDetail()" style="background:var(--border)">Close</button>
+      </div>
     </div>
   </div>
 
@@ -396,9 +464,97 @@
 
     function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
+    // Review Queue
+    let reviewOffset = 0;
+    const reviewLimit = 25;
+    let reviewTotal = 0;
+    let selectedReviewId = null;
+
+    async function loadReviewStats() {
+      try {
+        const stats = await api('GET', '/admin/reviews/stats');
+        document.getElementById('review-stats').innerHTML =
+          `Total: <strong>${stats.total}</strong> | ` +
+          `<span class="badge badge-blocked">Pending: ${stats.pending}</span> | ` +
+          `<span class="badge badge-success">Approved: ${stats.approved}</span> | ` +
+          `<span class="badge badge-error">Rejected: ${stats.rejected}</span> | ` +
+          `<span class="badge badge-info">Escalated: ${stats.escalated}</span> | ` +
+          `Avg Review Time: ${stats.avgReviewTimeMs > 0 ? (stats.avgReviewTimeMs / 1000).toFixed(1) + 's' : 'N/A'}` +
+          (stats.byPriority.critical ? ` | <span class="badge badge-error">Critical: ${stats.byPriority.critical}</span>` : '');
+      } catch { /* ignore if no review queue */ }
+    }
+
+    async function loadReviews() {
+      try {
+        const status = document.getElementById('review-status').value;
+        const priority = document.getElementById('review-priority').value;
+        const type = document.getElementById('review-type').value;
+        const params = new URLSearchParams();
+        if (status) params.set('status', status);
+        if (priority) params.set('priority', priority);
+        if (type) params.set('type', type);
+        params.set('limit', String(reviewLimit));
+        params.set('offset', String(reviewOffset));
+        const data = await api('GET', '/admin/reviews?' + params.toString());
+        reviewTotal = data.total;
+        const tbody = document.getElementById('review-table');
+        const priorityClass = { critical: 'badge-error', high: 'badge-blocked', medium: 'badge-info', low: 'badge-success' };
+        const statusClass = { pending: 'badge-blocked', approved: 'badge-success', rejected: 'badge-error', escalated: 'badge-info' };
+        tbody.innerHTML = data.items.map(r => `<tr>
+          <td><code>${r.id}</code></td>
+          <td><span class="badge badge-info">${r.type}</span></td>
+          <td><span class="badge ${priorityClass[r.priority] || 'badge-info'}">${r.priority}</span></td>
+          <td><span class="badge ${statusClass[r.status] || 'badge-info'}">${r.status}</span></td>
+          <td>${new Date(r.createdAt).toLocaleString()}</td>
+          <td>${r.metadata.transactionId ? 'TX: ' + esc(r.metadata.transactionId) : r.metadata.address ? 'Addr: ' + esc(r.metadata.address.slice(0, 10)) + '...' : r.metadata.jurisdiction || '-'}</td>
+          <td>${r.status === 'pending' ? '<button onclick="showReviewDetail(\'' + r.id + '\')">Review</button>' : (r.reviewerId ? esc(r.reviewerId) : '-')}</td>
+        </tr>`).join('');
+        document.getElementById('review-info').textContent =
+          reviewTotal > 0 ? `${reviewOffset + 1}-${Math.min(reviewOffset + reviewLimit, reviewTotal)} of ${reviewTotal}` : 'No items';
+        document.getElementById('review-prev').disabled = reviewOffset === 0;
+        document.getElementById('review-next').disabled = reviewOffset + reviewLimit >= reviewTotal;
+        loadReviewStats();
+      } catch { /* ignore if no review queue */ }
+    }
+
+    function reviewPage(dir) {
+      reviewOffset = Math.max(0, reviewOffset + dir * reviewLimit);
+      loadReviews();
+    }
+
+    async function showReviewDetail(id) {
+      selectedReviewId = id;
+      const item = await api('GET', '/admin/reviews/' + id);
+      const detail = document.getElementById('review-detail');
+      detail.style.display = 'block';
+      document.getElementById('review-detail-content').innerHTML =
+        `<p><strong>ID:</strong> <code>${esc(item.id)}</code> | <strong>Type:</strong> ${item.type} | <strong>Priority:</strong> ${item.priority} | <strong>Status:</strong> ${item.status}</p>` +
+        `<p><strong>Created:</strong> ${new Date(item.createdAt).toLocaleString()}</p>` +
+        (item.metadata.transactionId ? `<p><strong>Transaction:</strong> ${esc(item.metadata.transactionId)}</p>` : '') +
+        (item.metadata.address ? `<p><strong>Address:</strong> <code>${esc(item.metadata.address)}</code></p>` : '') +
+        (item.metadata.riskLevel ? `<p><strong>Risk Level:</strong> ${esc(item.metadata.riskLevel)}</p>` : '') +
+        `<details><summary>AI Decision Payload</summary><pre style="max-height:300px; overflow:auto; background:var(--bg); padding:0.5rem; border-radius:4px; font-size:0.8rem;">${esc(JSON.stringify(item.decision, null, 2))}</pre></details>`;
+    }
+
+    function closeReviewDetail() {
+      document.getElementById('review-detail').style.display = 'none';
+      selectedReviewId = null;
+    }
+
+    async function reviewAction(action) {
+      if (!selectedReviewId) return;
+      const reviewerId = document.getElementById('review-reviewer').value.trim();
+      if (!reviewerId) { alert('Reviewer ID is required'); return; }
+      const notes = document.getElementById('review-notes').value.trim() || undefined;
+      await api('POST', '/admin/reviews/' + selectedReviewId + '/' + action, { reviewerId, notes });
+      closeReviewDetail();
+      loadReviews();
+    }
+
     // Initial load
     loadOrgs();
     loadKeys();
+    loadReviews();
     loadAudit();
     loadHealth();
   </script>

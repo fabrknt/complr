@@ -18,6 +18,7 @@ Complr is a **chain-agnostic** compliance platform covering **MAS** (Singapore),
 | **3** | Product Depth | Complete | Semantic search, OFAC screening, audit logging, multi-tenancy |
 | **3+** | Tests, Persistence, Admin | Complete | Unit tests, file-backed persistence, admin UI, custom screener, SDK audit logs |
 | **4** | Security & CI | Complete | Admin auth, CI pipeline, integration tests |
+| **5** | Production Hardening | Complete | Human-in-the-loop review queue, external screening providers (TRM Labs, Chainalysis), confidence scoring & citation verification |
 
 ---
 
@@ -105,6 +106,7 @@ All `/api/v1/*` routes require a Bearer token via the `Authorization` header.
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/v1/query` | Regulatory knowledge base query |
+| POST | `/api/v1/query/confident` | Query with confidence scoring & citations |
 | POST | `/api/v1/check` | Single transaction compliance check |
 | POST | `/api/v1/check/batch` | Batch check (up to 50 transactions) |
 | POST | `/api/v1/screen/wallet` | Wallet risk assessment (OFAC + LLM) |
@@ -143,6 +145,12 @@ All admin API routes require the admin token when `ADMIN_TOKEN` is set.
 | GET | `/admin/organizations` | List all organizations |
 | GET | `/admin/organizations/:id` | Get organization details |
 | GET | `/admin/audit` | Query all audit logs (with filters) |
+| GET | `/admin/reviews` | List review items (with filters) |
+| GET | `/admin/reviews/stats` | Review queue statistics |
+| GET | `/admin/reviews/:id` | Get review item detail |
+| POST | `/admin/reviews/:id/approve` | Approve review item |
+| POST | `/admin/reviews/:id/reject` | Reject review item |
+| POST | `/admin/reviews/:id/escalate` | Escalate review item |
 | GET | `/admin` | Admin dashboard UI |
 | POST | `/admin/screen/test` | Test address screening (sanctions only) |
 
@@ -281,22 +289,153 @@ Data is stored as JSON files with atomic writes. Without `COMPLR_DATA_DIR`, ever
 
 ### Admin Dashboard
 
-Open `http://localhost:3000/admin` for a web-based admin UI with 4 tabs:
+Open `http://localhost:3000/admin` for a web-based admin UI with 5 tabs:
 
 1. **Organizations** — create and list organizations
 2. **API Keys** — create, list, and revoke API keys
-3. **Audit Log** — filterable, paginated audit event viewer
-4. **Screening** — system health status and test address screening
+3. **Review Queue** — filterable review list, statistics, detail view with AI decision payload, approve/reject/escalate actions
+4. **Audit Log** — filterable, paginated audit event viewer
+5. **Screening** — system health status and test address screening
 
 ### Automated Tests
 
-~66 tests across 9 test files using `node:test` + `tsx`:
+170 tests across 15 test files using vitest:
 
 ```bash
 pnpm test
 ```
 
-Tests cover: TF-IDF search, audit logging, organizations, API keys, OFAC screener, screening registry, knowledge base, admin auth middleware, and HTTP-level API integration tests.
+Tests cover: TF-IDF search, audit logging, organizations, API keys, OFAC screener, screening registry, knowledge base, admin auth middleware, HTTP-level API integration, review queue, confidence scoring, and external screening providers.
+
+---
+
+## Phase 5: Production Hardening
+
+Three cross-cutting improvements that address the gap between "demo/prototype" and "commercial infrastructure": human oversight of AI decisions, integration with premium on-chain intelligence, and structured confidence scoring to mitigate LLM hallucination risk.
+
+### Human-in-the-Loop Review Queue
+
+A compliance officer review queue for all high-risk AI decisions. Non-compliant transactions, high-risk wallet screenings, and all generated SAR/STR reports are automatically submitted for human review.
+
+```bash
+# List pending reviews (admin dashboard or API)
+curl localhost:3000/admin/reviews?status=pending \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+
+# Approve a review item
+curl -X POST localhost:3000/admin/reviews/rv_abc123/approve \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"reviewerId": "compliance-officer-1", "notes": "Verified against source docs"}'
+
+# Reject a review item
+curl -X POST localhost:3000/admin/reviews/rv_abc123/reject \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"reviewerId": "compliance-officer-1", "notes": "False positive"}'
+
+# Escalate for senior review
+curl -X POST localhost:3000/admin/reviews/rv_abc123/escalate \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"reviewerId": "compliance-officer-1", "notes": "Needs legal team input"}'
+
+# Get review queue statistics
+curl localhost:3000/admin/reviews/stats \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+Auto-submission rules:
+- **Transaction checks**: Submitted when `overallStatus` is `blocked` or `requires_action`
+- **Wallet screenings**: Submitted when `riskLevel` is `high` or `critical`
+- **Reports**: All generated SAR/STR reports are submitted (all reports need human sign-off)
+
+Priority is auto-assigned: critical screening hits → critical, blocked transactions → high, requires-action → medium, reports → medium.
+
+The admin dashboard includes a **Review Queue** tab with filtering, detail view with the full AI decision payload, and one-click approve/reject/escalate actions.
+
+Review queue data persists to disk when `COMPLR_DATA_DIR` is set.
+
+### External On-chain Intelligence Providers
+
+Integration with premium KYC/AML providers via a pluggable `ExternalScreeningProvider` base class. Two providers are included:
+
+| Provider | Env Var | API |
+|----------|---------|-----|
+| **TRM Labs** | `TRM_LABS_API_KEY` | `/v2/screening/addresses` |
+| **Chainalysis KYT** | `CHAINALYSIS_API_KEY` | `/api/risk/v2/entities/{address}` |
+
+```bash
+# Start with TRM Labs screening
+TRM_LABS_API_KEY=your-key ANTHROPIC_API_KEY=sk-ant-... pnpm start:server
+
+# Start with Chainalysis screening
+CHAINALYSIS_API_KEY=your-key ANTHROPIC_API_KEY=sk-ant-... pnpm start:server
+
+# Both providers can run simultaneously
+TRM_LABS_API_KEY=trm-key CHAINALYSIS_API_KEY=ch-key ANTHROPIC_API_KEY=sk-ant-... pnpm start:server
+
+# Custom base URLs for sandbox/testing
+TRM_LABS_BASE_URL=https://sandbox.trmlabs.com TRM_LABS_API_KEY=your-key ...
+```
+
+The base class provides:
+- **TTL-based caching** (default 5 minutes) to avoid redundant API calls
+- **Retry with exponential backoff** (configurable max retries, default 2)
+- **Rate-limit tracking** via `x-ratelimit-remaining` headers
+- **Graceful degradation**: returns empty hits on API failure, logs warning
+- **Health checks**: reflected in the `/health` endpoint
+
+Custom providers can be built by extending `ExternalScreeningProvider` and implementing `fetchScreeningData()` and `healthCheck()`.
+
+### Confidence Scoring & Citation Verification
+
+Regulatory query responses can now include structured confidence metadata to mitigate LLM hallucination risk. This addresses the core liability gap: a VASP cannot use "the AI said it was okay" as a defense with FSA or MAS.
+
+```typescript
+// SDK usage
+const result = await complr.queryConfident({
+  question: "What is the Travel Rule threshold in Singapore?",
+  jurisdiction: "MAS",
+});
+
+// result includes:
+// - answer: string (the LLM response)
+// - confidence: { score: 0.82, level: "high", factors: [...] }
+// - citations: [{ documentId, documentTitle, verified: true, excerpt: "..." }]
+// - warnings: ["Only one source document was available"]
+// - disclaimer: "This analysis is generated by AI and should not be..."
+```
+
+```bash
+# API: confidence-scored query
+curl -X POST localhost:3000/api/v1/query/confident \
+  -H "Authorization: Bearer complr_..." \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What are KYC requirements for exchanges in Hong Kong?", "jurisdiction": "SFC"}'
+
+# Legacy route: add confident flag
+curl -X POST localhost:3000/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "...", "jurisdiction": "MAS", "confident": true}'
+```
+
+The confidence scorer is pure logic (no additional LLM calls) and evaluates:
+
+| Factor | What it measures |
+|--------|-----------------|
+| **source_coverage** | How many answer terms appear in source documents |
+| **recency** | How recent the source regulatory documents are |
+| **specificity** | Whether the answer includes specific thresholds, dates, section numbers |
+| **citation_accuracy** | Whether referenced documents exist in the knowledge base |
+
+Hallucination detection flags:
+- References to documents not in the source set
+- Claims about regulations from the wrong jurisdiction
+- Use of absolute language ("always", "never", "guaranteed") in regulatory interpretations
+- Insufficient source material
+
+Every response includes a disclaimer: *"This analysis is generated by AI and should not be considered legal advice. A qualified compliance professional must verify all regulatory interpretations before acting on them."*
 
 ---
 
@@ -358,10 +497,16 @@ packages/
         screening-provider.ts       # ScreeningRegistry for pluggable providers
         ofac-screener.ts            # OFAC SDN list fetcher/parser
         custom-screener.ts          # JSON-file custom sanctions screener
+        external-provider.ts        # Abstract base for external intelligence providers
+        trm-provider.ts             # TRM Labs API integration
+        chainalysis-provider.ts     # Chainalysis KYT API integration
+      review/
+        queue.ts                    # Human-in-the-loop review queue
       regulatory/
         analyzer.ts                 # LLM-powered regulatory analysis
         knowledge-base.ts           # Document store with TF-IDF semantic search
         vector-search.ts            # TF-IDF index with cosine similarity
+        confidence.ts               # Confidence scoring & citation verification
       reports/
         generator.ts                # SAR/STR report generation
       vault/
@@ -423,7 +568,10 @@ The knowledge base ships with 8 regulatory documents covering:
 - **Legacy routes preserved** -- existing web UI at `/` continues to work without auth
 - **Single Express server** -- SDK API (`/api/v1/*`), vault demo (`/vault/*`), and web UI all share one server
 - **Audit everything** -- every API route is wrapped with `auditWrap` for automatic logging with zero per-handler boilerplate
-- **Pluggable screening** -- `ScreeningProvider` interface lets you add new sanctions lists, PEP databases, or custom checks alongside the built-in OFAC screener
+- **Pluggable screening** -- `ScreeningProvider` interface lets you add new sanctions lists, PEP databases, or custom checks alongside the built-in OFAC screener. `ExternalScreeningProvider` adds caching, retry, and graceful degradation for API-based providers (TRM Labs, Chainalysis)
+- **Human-in-the-loop** -- AI decisions that affect compliance (blocked transactions, high-risk screenings, all reports) are auto-submitted to a review queue for human approval, with priority-based routing
+- **Confidence over certainty** -- regulatory queries return structured confidence scores with verified citations and hallucination warnings, so compliance officers know how much to trust each response
+- **AI output is never final** -- every AI-generated response includes a legal disclaimer; SAR/STR reports require human sign-off via the review queue before submission to regulators
 
 ## Development
 
@@ -432,7 +580,7 @@ pnpm install        # Install all dependencies
 pnpm build          # Build all packages (via turbo)
 pnpm dev            # Watch mode
 pnpm typecheck      # Type check without emitting
-pnpm test           # Run all tests (~66 tests, 9 suites)
+pnpm test           # Run all tests (170 tests, 15 suites)
 ```
 
 CI runs automatically on push/PR to `master` via GitHub Actions (Node 20, pnpm, build + test).

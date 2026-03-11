@@ -8,7 +8,10 @@ import { WalletScreener } from "../policy/wallet-screener.js";
 import { ScreeningRegistry } from "../policy/screening-provider.js";
 import { OfacScreener } from "../policy/ofac-screener.js";
 import { CustomScreener } from "../policy/custom-screener.js";
+import { TrmLabsProvider } from "../policy/trm-provider.js";
+import { ChainalysisProvider } from "../policy/chainalysis-provider.js";
 import { AuditLogger } from "../audit/index.js";
+import { ReviewQueue } from "../review/queue.js";
 import { createApp } from "./app.js";
 import { createVaultRouter } from "./vault-routes.js";
 
@@ -44,7 +47,34 @@ if (customSanctionsFile) {
   customScreener.refresh().catch((err) => console.warn("Custom screener initial refresh failed:", err));
 }
 
+// Optional TRM Labs provider
+const trmApiKey = process.env.TRM_LABS_API_KEY;
+if (trmApiKey) {
+  const trmProvider = new TrmLabsProvider({
+    apiKey: trmApiKey,
+    baseUrl: process.env.TRM_LABS_BASE_URL || "https://api.trmlabs.com",
+  });
+  screeningRegistry.register(trmProvider);
+  trmProvider.refresh().catch((err) => console.warn("TRM Labs initial refresh failed:", err));
+}
+
+// Optional Chainalysis provider
+const chainalysisApiKey = process.env.CHAINALYSIS_API_KEY;
+if (chainalysisApiKey) {
+  const chainalysisProvider = new ChainalysisProvider({
+    apiKey: chainalysisApiKey,
+    baseUrl: process.env.CHAINALYSIS_BASE_URL || "https://api.chainalysis.com",
+  });
+  screeningRegistry.register(chainalysisProvider);
+  chainalysisProvider.refresh().catch((err) => console.warn("Chainalysis initial refresh failed:", err));
+}
+
 const walletScreener = new WalletScreener(apiKey, "claude-sonnet-4-5-20250929", screeningRegistry);
+
+// Review queue
+const reviewQueue = new ReviewQueue(
+  dataDir ? path.join(dataDir, "review-queue.json") : undefined
+);
 
 // Load seed regulatory data
 for (const doc of SEED_REGULATIONS) {
@@ -69,6 +99,7 @@ const app = createApp({
   webhookManager,
   walletScreener,
   ofacScreener,
+  reviewQueue,
 });
 
 // ─── Vault Routes (Phase 2) ─────────────────────────────────────────

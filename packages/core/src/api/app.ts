@@ -11,6 +11,7 @@ import type { WalletScreener } from "../policy/wallet-screener.js";
 import type { ScreeningRegistry } from "../policy/screening-provider.js";
 import type { OfacScreener } from "../policy/ofac-screener.js";
 import type { AuditLogger } from "../audit/logger.js";
+import type { ReviewQueue } from "../review/queue.js";
 import type { Jurisdiction, TransactionDetails, AuditAction } from "../types.js";
 import { detectAddressFormat } from "../types.js";
 
@@ -25,6 +26,7 @@ export interface AppDependencies {
   webhookManager?: WebhookManager;
   walletScreener?: WalletScreener;
   ofacScreener?: OfacScreener;
+  reviewQueue?: ReviewQueue;
 }
 
 export function createApp(deps: AppDependencies): express.Express {
@@ -37,6 +39,7 @@ export function createApp(deps: AppDependencies): express.Express {
     webhookManager,
     walletScreener,
     ofacScreener,
+    reviewQueue,
   } = deps;
 
   const app = express();
@@ -111,6 +114,7 @@ export function createApp(deps: AppDependencies): express.Express {
       version: "1.0.0",
       screeningProviders: screeningRegistry.providerCount,
       ofacLastRefreshed: ofacScreener?.lastRefreshed ?? null,
+      reviewQueue: reviewQueue ? reviewQueue.stats() : null,
     });
   });
 
@@ -118,16 +122,22 @@ export function createApp(deps: AppDependencies): express.Express {
 
   if (complr) {
     app.post("/query", auditWrap("query", async (req, res) => {
-      const { question, jurisdiction } = req.body as {
+      const { question, jurisdiction, confident } = req.body as {
         question: string;
         jurisdiction: Jurisdiction;
+        confident?: boolean;
       };
       if (!question || !jurisdiction) {
         res.status(400).json({ error: "question and jurisdiction are required" });
         return;
       }
-      const answer = await complr.query(question, jurisdiction);
-      res.json({ answer });
+      if (confident) {
+        const result = await complr.queryWithConfidence(question, jurisdiction);
+        res.json(result);
+      } else {
+        const answer = await complr.query(question, jurisdiction);
+        res.json({ answer });
+      }
     }));
 
     app.post("/check", auditWrap("check", async (req, res) => {
@@ -288,6 +298,76 @@ export function createApp(deps: AppDependencies): express.Express {
     });
   });
 
+  // ─── Review Queue Admin Routes ─────────────────────────────────────
+
+  if (reviewQueue) {
+    app.get("/admin/reviews", adminAuthMiddleware, (req, res) => {
+      const result = reviewQueue.query({
+        status: req.query.status as "pending" | "approved" | "rejected" | "escalated" | undefined,
+        priority: req.query.priority as "low" | "medium" | "high" | "critical" | undefined,
+        type: req.query.type as "check" | "screen" | "report" | undefined,
+        limit: req.query.limit ? Number(req.query.limit) : undefined,
+        offset: req.query.offset ? Number(req.query.offset) : undefined,
+      });
+      res.json(result);
+    });
+
+    app.get("/admin/reviews/stats", adminAuthMiddleware, (_req, res) => {
+      res.json(reviewQueue.stats());
+    });
+
+    app.get("/admin/reviews/:id", adminAuthMiddleware, (req, res) => {
+      const item = reviewQueue.getById(req.params.id);
+      if (!item) {
+        res.status(404).json({ error: "Review item not found" });
+        return;
+      }
+      res.json(item);
+    });
+
+    app.post("/admin/reviews/:id/approve", adminAuthMiddleware, auditWrap("review.approve", (req, res) => {
+      const { reviewerId, notes } = req.body as { reviewerId: string; notes?: string };
+      if (!reviewerId) {
+        res.status(400).json({ error: "reviewerId is required" });
+        return;
+      }
+      const item = reviewQueue.approve(req.params.id, reviewerId, notes);
+      if (!item) {
+        res.status(404).json({ error: "Review item not found" });
+        return;
+      }
+      res.json(item);
+    }));
+
+    app.post("/admin/reviews/:id/reject", adminAuthMiddleware, auditWrap("review.reject", (req, res) => {
+      const { reviewerId, notes } = req.body as { reviewerId: string; notes?: string };
+      if (!reviewerId) {
+        res.status(400).json({ error: "reviewerId is required" });
+        return;
+      }
+      const item = reviewQueue.reject(req.params.id, reviewerId, notes);
+      if (!item) {
+        res.status(404).json({ error: "Review item not found" });
+        return;
+      }
+      res.json(item);
+    }));
+
+    app.post("/admin/reviews/:id/escalate", adminAuthMiddleware, auditWrap("review.escalate", (req, res) => {
+      const { reviewerId, notes } = req.body as { reviewerId: string; notes?: string };
+      if (!reviewerId) {
+        res.status(400).json({ error: "reviewerId is required" });
+        return;
+      }
+      const item = reviewQueue.escalate(req.params.id, reviewerId, notes);
+      if (!item) {
+        res.status(404).json({ error: "Review item not found" });
+        return;
+      }
+      res.json(item);
+    }));
+  }
+
   // ─── V1 API Routes (require API key) ─────────────────────────────────
 
   const v1 = express.Router();
@@ -310,6 +390,25 @@ export function createApp(deps: AppDependencies): express.Express {
     keyManager.trackUsage(req.apiKey!.id, "query");
     const answer = await complr.query(question, jurisdiction);
     res.json({ answer });
+  }));
+
+  // Query with confidence scoring
+  v1.post("/query/confident", auditWrap("query", async (req, res) => {
+    if (!complr) {
+      res.status(503).json({ error: "Compliance engine not available" });
+      return;
+    }
+    const { question, jurisdiction } = req.body as {
+      question: string;
+      jurisdiction: Jurisdiction;
+    };
+    if (!question || !jurisdiction) {
+      res.status(400).json({ error: "question and jurisdiction are required" });
+      return;
+    }
+    keyManager.trackUsage(req.apiKey!.id, "query");
+    const result = await complr.queryWithConfidence(question, jurisdiction);
+    res.json(result);
   }));
 
   // Single transaction check
@@ -338,6 +437,20 @@ export function createApp(deps: AppDependencies): express.Express {
         webhookManager.deliver("check.blocked", result).catch(() => {});
       }
       webhookManager.deliver("check.completed", result).catch(() => {});
+    }
+
+    // Auto-submit to review queue for non-compliant results
+    if (reviewQueue && result.overallStatus !== "compliant") {
+      reviewQueue.submit({
+        type: "check",
+        decision: result,
+        metadata: {
+          transactionId: result.transactionId,
+          riskLevel: result.overallStatus,
+          apiKeyId: req.apiKey?.id,
+          organizationId: req.apiKey?.organizationId,
+        },
+      });
     }
 
     res.json(result);
@@ -402,6 +515,20 @@ export function createApp(deps: AppDependencies): express.Express {
       webhookManager.deliver("screen.high_risk", result).catch(() => {});
     }
 
+    // Auto-submit high-risk screenings to review queue
+    if (reviewQueue && (result.riskLevel === "high" || result.riskLevel === "critical")) {
+      reviewQueue.submit({
+        type: "screen",
+        decision: result,
+        metadata: {
+          address: result.address,
+          riskLevel: result.riskLevel,
+          apiKeyId: req.apiKey?.id,
+          organizationId: req.apiKey?.organizationId,
+        },
+      });
+    }
+
     res.json(result);
   }));
 
@@ -433,6 +560,20 @@ export function createApp(deps: AppDependencies): express.Express {
 
     if (webhookManager) {
       webhookManager.deliver("report.generated", report).catch(() => {});
+    }
+
+    // All reports need human sign-off
+    if (reviewQueue) {
+      reviewQueue.submit({
+        type: "report",
+        decision: report,
+        metadata: {
+          transactionId: report.transactionDetails.transactionId,
+          jurisdiction: report.jurisdiction,
+          apiKeyId: req.apiKey?.id,
+          organizationId: req.apiKey?.organizationId,
+        },
+      });
     }
 
     res.json(report);
