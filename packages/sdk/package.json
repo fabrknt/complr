@@ -8,10 +8,14 @@
   "files": ["dist"],
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "keywords": ["compliance", "crypto", "aml", "kyc", "travel-rule", "sdk"],
   "license": "MIT",
+  "devDependencies": {
+    "vitest": "^3.0.0"
+  },
   "engines": {
     "node": ">=18"
   }
