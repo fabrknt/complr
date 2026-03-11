@@ -142,7 +142,11 @@ export type AuditAction =
   | "vault.deposit"
   | "vault.withdraw"
   | "vault.register"
-  | "vault.screen";
+  | "vault.screen"
+  | "review.submit"
+  | "review.approve"
+  | "review.reject"
+  | "review.escalate";
 
 /** Audit event logged for every API operation */
 export interface AuditEvent {
@@ -174,4 +178,94 @@ export interface AuditQueryParams {
 export interface AuditQueryResult {
   events: AuditEvent[];
   total: number;
+}
+
+// ─── Confidence Scoring ─────────────────────────────────────────────
+
+/** Confidence factor in a regulatory query result */
+export interface ConfidenceFactor {
+  factor: "source_coverage" | "recency" | "specificity" | "citation_accuracy";
+  score: number;
+  weight: number;
+  description: string;
+}
+
+/** Verified citation from source documents */
+export interface Citation {
+  documentTitle: string;
+  verified: boolean;
+  relevanceScore: number;
+  snippet?: string;
+}
+
+/** Structured regulatory query result with confidence scoring */
+export interface RegulatoryQueryResult {
+  answer: string;
+  confidence: {
+    score: number;
+    level: "high" | "medium" | "low" | "very_low";
+    factors: ConfidenceFactor[];
+  };
+  citations: Citation[];
+  warnings: string[];
+  disclaimer: string;
+  metadata: {
+    jurisdiction: string;
+    modelUsed: string;
+    queryTimestamp: string;
+    sourcesUsed: number;
+    sourcesAvailable: number;
+  };
+}
+
+// ─── Review Queue ───────────────────────────────────────────────────
+
+/** Review item priority */
+export type ReviewPriority = "low" | "medium" | "high" | "critical";
+
+/** Review item status */
+export type ReviewStatus = "pending" | "approved" | "rejected" | "escalated";
+
+/** Review item type */
+export type ReviewType = "check" | "screen" | "report";
+
+/** A review queue item */
+export interface ReviewItem {
+  id: string;
+  type: ReviewType;
+  status: ReviewStatus;
+  priority: ReviewPriority;
+  decision: unknown;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  reviewerId?: string;
+  reviewerNotes?: string;
+  reviewedAt?: string;
+}
+
+/** Review queue query filters */
+export interface ReviewQueryFilters {
+  status?: ReviewStatus;
+  priority?: ReviewPriority;
+  type?: ReviewType;
+  limit?: number;
+  offset?: number;
+}
+
+/** Review query result */
+export interface ReviewQueryResult {
+  items: ReviewItem[];
+  total: number;
+}
+
+/** Review queue statistics */
+export interface ReviewStats {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+  escalated: number;
+  avgReviewTimeMs: number;
+  byPriority: Record<ReviewPriority, number>;
 }

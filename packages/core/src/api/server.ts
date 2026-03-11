@@ -14,8 +14,17 @@ import { AuditLogger } from "../audit/index.js";
 import { ReviewQueue } from "../review/queue.js";
 import { createApp } from "./app.js";
 import { createVaultRouter } from "./vault-routes.js";
+import { validateEnv, logValidationResult } from "./env-validation.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// ─── Validate environment before creating any services ───────────────
+const envResult = validateEnv();
+logValidationResult(envResult);
+if (!envResult.valid) {
+  console.error("Environment validation failed. Exiting.");
+  process.exit(1);
+}
 
 const apiKey = process.env.ANTHROPIC_API_KEY;
 if (!apiKey) {

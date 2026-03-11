@@ -12,6 +12,11 @@ import type {
   ApiError,
   AuditQueryParams,
   AuditQueryResult,
+  RegulatoryQueryResult,
+  ReviewItem,
+  ReviewQueryFilters,
+  ReviewQueryResult,
+  ReviewStats,
 } from "./types.js";
 
 /**
@@ -113,6 +118,17 @@ export class ComplrClient {
     });
   }
 
+  /** Query the regulatory knowledge base with confidence scoring and citation verification */
+  async queryConfident(
+    question: string,
+    jurisdiction: Jurisdiction
+  ): Promise<RegulatoryQueryResult> {
+    return this.post<RegulatoryQueryResult>("/api/v1/query/confident", {
+      question,
+      jurisdiction,
+    });
+  }
+
   // ─── Webhook Management ───────────────────────────────────────────
 
   /** Register a webhook endpoint */
@@ -159,6 +175,46 @@ export class ComplrClient {
     const query = qs.toString();
     const path = `/api/v1/audit${query ? `?${query}` : ""}`;
     return this.get<AuditQueryResult>(path);
+  }
+
+  // ─── Review Queue (Admin) ──────────────────────────────────────────
+
+  /** List review items with optional filters (requires admin token) */
+  async getReviews(filters?: ReviewQueryFilters): Promise<ReviewQueryResult> {
+    const qs = new URLSearchParams();
+    if (filters?.status) qs.set("status", filters.status);
+    if (filters?.priority) qs.set("priority", filters.priority);
+    if (filters?.type) qs.set("type", filters.type);
+    if (filters?.limit !== undefined) qs.set("limit", String(filters.limit));
+    if (filters?.offset !== undefined) qs.set("offset", String(filters.offset));
+    const query = qs.toString();
+    const path = `/admin/reviews${query ? `?${query}` : ""}`;
+    return this.get<ReviewQueryResult>(path);
+  }
+
+  /** Get review queue statistics (requires admin token) */
+  async getReviewStats(): Promise<ReviewStats> {
+    return this.get<ReviewStats>("/admin/reviews/stats");
+  }
+
+  /** Get a specific review item by ID (requires admin token) */
+  async getReview(id: string): Promise<ReviewItem> {
+    return this.get<ReviewItem>(`/admin/reviews/${id}`);
+  }
+
+  /** Approve a review item (requires admin token) */
+  async approveReview(id: string, reviewerId: string, notes?: string): Promise<ReviewItem> {
+    return this.post<ReviewItem>(`/admin/reviews/${id}/approve`, { reviewerId, notes });
+  }
+
+  /** Reject a review item (requires admin token) */
+  async rejectReview(id: string, reviewerId: string, notes?: string): Promise<ReviewItem> {
+    return this.post<ReviewItem>(`/admin/reviews/${id}/reject`, { reviewerId, notes });
+  }
+
+  /** Escalate a review item (requires admin token) */
+  async escalateReview(id: string, reviewerId: string, notes?: string): Promise<ReviewItem> {
+    return this.post<ReviewItem>(`/admin/reviews/${id}/escalate`, { reviewerId, notes });
   }
 
   // ─── HTTP Layer ───────────────────────────────────────────────────

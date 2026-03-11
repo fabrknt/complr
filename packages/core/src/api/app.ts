@@ -4,6 +4,8 @@ import { fileURLToPath } from "url";
 import path from "path";
 import type { Complr } from "../index.js";
 import { apiKeyAuth, adminAuth } from "../auth/index.js";
+import { rateLimitMiddleware } from "./rate-limit.js";
+import type { RateLimitConfig } from "./rate-limit.js";
 import type { ApiKeyManager } from "../auth/api-keys.js";
 import type { OrganizationManager } from "../auth/organizations.js";
 import type { WebhookManager } from "../webhooks/manager.js";
@@ -27,6 +29,7 @@ export interface AppDependencies {
   walletScreener?: WalletScreener;
   ofacScreener?: OfacScreener;
   reviewQueue?: ReviewQueue;
+  rateLimitConfig?: RateLimitConfig;
 }
 
 export function createApp(deps: AppDependencies): express.Express {
@@ -40,6 +43,7 @@ export function createApp(deps: AppDependencies): express.Express {
     walletScreener,
     ofacScreener,
     reviewQueue,
+    rateLimitConfig,
   } = deps;
 
   const app = express();
@@ -371,6 +375,7 @@ export function createApp(deps: AppDependencies): express.Express {
   // ─── V1 API Routes (require API key) ─────────────────────────────────
 
   const v1 = express.Router();
+  v1.use(rateLimitMiddleware(rateLimitConfig));
   v1.use(apiKeyAuth(keyManager, orgManager));
 
   // Query
