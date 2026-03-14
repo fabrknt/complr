@@ -50,7 +50,7 @@ export function parseWebhookPayload(
  * @example
  * ```ts
  * import express from "express";
- * import { webhookMiddleware } from "@complr/sdk";
+ * import { webhookMiddleware } from "@fabrknt/complr-sdk";
  *
  * const app = express();
  * app.post("/webhooks/complr", webhookMiddleware("your-secret", (event) => {

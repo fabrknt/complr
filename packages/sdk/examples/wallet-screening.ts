@@ -1,11 +1,11 @@
 /**
- * @complr/sdk — Wallet Screening Example
+ * @fabrknt/complr-sdk — Wallet Screening Example
  *
  * Demonstrates sanctions/PEP screening before allowing on-chain
  * operations. This pattern is used across DeFi platforms to gate
  * deposits, transfers, and minting behind compliance checks.
  */
-import { ComplrClient } from '@complr/sdk';
+import { ComplrClient } from '@fabrknt/complr-sdk';
 
 const client = new ComplrClient({
   apiKey: process.env.COMPLR_API_KEY || '',

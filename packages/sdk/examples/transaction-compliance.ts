@@ -1,11 +1,11 @@
 /**
- * @complr/sdk — Transaction Compliance Check Example
+ * @fabrknt/complr-sdk — Transaction Compliance Check Example
  *
  * Demonstrates checking a transaction against multi-jurisdiction
  * compliance rules before execution. Works for any chain supported
  * by complr (Solana, Ethereum, etc.).
  */
-import { ComplrClient } from '@complr/sdk';
+import { ComplrClient } from '@fabrknt/complr-sdk';
 
 const client = new ComplrClient({
   apiKey: process.env.COMPLR_API_KEY || '',

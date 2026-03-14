@@ -1,17 +1,17 @@
-# @complr/sdk
+# @fabrknt/complr-sdk
 
 Compliance Middleware SDK for Asia's crypto markets. Embed multi-jurisdiction compliance checks (MAS, SFC, FSA) into any exchange or VASP with a single npm package.
 
 ## Installation
 
 ```bash
-npm install @complr/sdk
+npm install @fabrknt/complr-sdk
 ```
 
 ## Quick Start
 
 ```typescript
-import { ComplrClient } from "@complr/sdk";
+import { ComplrClient } from "@fabrknt/complr-sdk";
 
 const complr = new ComplrClient({
   apiKey: "complr_...",
@@ -122,7 +122,7 @@ const wh = await complr.registerWebhook(
 
 ```typescript
 import express from "express";
-import { webhookMiddleware } from "@complr/sdk";
+import { webhookMiddleware } from "@fabrknt/complr-sdk";
 
 const app = express();
 
@@ -139,7 +139,7 @@ app.post(
 Or verify manually:
 
 ```typescript
-import { verifyWebhookSignature, parseWebhookPayload } from "@complr/sdk";
+import { verifyWebhookSignature, parseWebhookPayload } from "@fabrknt/complr-sdk";
 
 const isValid = verifyWebhookSignature(rawBody, signatureHeader, secret);
 const payload = parseWebhookPayload(rawBody, signatureHeader, secret);
@@ -189,7 +189,7 @@ Every API call is logged with: action, resource, result, status code, client IP,
 Compliance officers can manage the human-in-the-loop review queue. These methods require an admin token as the API key.
 
 ```typescript
-import { ComplrClient } from "@complr/sdk";
+import { ComplrClient } from "@fabrknt/complr-sdk";
 
 const admin = new ComplrClient({
   apiKey: "your-admin-token",
@@ -239,7 +239,7 @@ const complr = new ComplrClient({
 36 tests covering the SDK client and webhook handler:
 
 ```bash
-pnpm --filter @complr/sdk test
+pnpm --filter @fabrknt/complr-sdk test
 ```
 
 Tests cover: request formatting for all endpoints, response handling, retry logic with exponential backoff, 429 rate limit handling, review queue methods, audit log query building, webhook HMAC signature verification, and Express webhook middleware.

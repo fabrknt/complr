@@ -13,7 +13,7 @@ Complr is a **chain-agnostic** compliance platform covering **MAS** (Singapore),
 | Phase | Name | Status | Description |
 |-------|------|--------|-------------|
 | **0** | AI Compliance Agent | Complete | Core compliance engine with 4 features |
-| **1** | Compliance Middleware SDK | MVP | `@complr/sdk` — npm-installable SDK for exchanges/VASPs |
+| **1** | Compliance Middleware SDK | MVP | `@fabrknt/complr-sdk` — npm-installable SDK for exchanges/VASPs |
 | **2** | Regulated Yield Platform | Demo | Compliance-embedded yield vaults for investor pitches |
 | **3** | Product Depth | Complete | Semantic search, OFAC screening, audit logging, multi-tenancy |
 | **3+** | Tests, Persistence, Admin | Complete | Unit tests, file-backed persistence, admin UI, custom screener, SDK audit logs |
@@ -39,7 +39,7 @@ Open `http://localhost:3000` after starting the server. 4 interactive tabs for a
 
 ## Phase 1: Compliance Middleware SDK
 
-The SDK wraps the compliance engine into an authenticated API that exchanges and VASPs can integrate via `npm install @complr/sdk`.
+The SDK wraps the compliance engine into an authenticated API that exchanges and VASPs can integrate via `npm install @fabrknt/complr-sdk`.
 
 ### SDK Features
 
@@ -53,7 +53,7 @@ The SDK wraps the compliance engine into an authenticated API that exchanges and
 ### SDK Quick Start
 
 ```typescript
-import { ComplrClient } from "@complr/sdk";
+import { ComplrClient } from "@fabrknt/complr-sdk";
 
 const complr = new ComplrClient({
   apiKey: "complr_...",
@@ -511,7 +511,7 @@ This project is a **pnpm monorepo** managed with **turbo**. It uses pnpm@10.31.0
 
 ```
 packages/
-  core/                             # @complr/core -- compliance engine + API server
+  core/                             # @fabrknt/complr-core -- compliance engine + API server
     src/
       index.ts                      # Complr class -- main entry point
       types.ts                      # Shared types and interfaces
@@ -583,7 +583,7 @@ packages/
       vault.html                    # Phase 2 vault dashboard (5 tabs)
       admin.html                    # Admin dashboard (5 tabs)
 
-  sdk/                              # @complr/sdk -- standalone SDK package
+  sdk/                              # @fabrknt/complr-sdk -- standalone SDK package
     src/
       client.ts                     # ComplrClient class with retry/backoff
       types.ts                      # SDK-facing type definitions
@@ -593,7 +593,7 @@ packages/
       client.test.ts                # SDK client unit tests (mocked fetch)
       webhook-handler.test.ts       # Webhook HMAC verification tests
 
-  qn-addon/                         # @complr/qn-addon -- QuickNode Marketplace add-on
+  qn-addon/                         # @fabrknt/complr-qn-addon -- QuickNode Marketplace add-on
     docs/
       user-guide.md                 # End-user documentation for the add-on
 ```

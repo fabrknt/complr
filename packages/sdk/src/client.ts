@@ -24,7 +24,7 @@ import type {
  *
  * @example
  * ```ts
- * import { ComplrClient } from "@complr/sdk";
+ * import { ComplrClient } from "@fabrknt/complr-sdk";
  *
  * const complr = new ComplrClient({ apiKey: "complr_..." });
  * const result = await complr.checkTransaction({

@@ -1,6 +1,6 @@
 {
-  "name": "@complr/sdk",
-  "version": "0.1.0",
+  "name": "@fabrknt/complr-sdk",
+  "version": "1.0.0",
   "description": "Compliance Middleware SDK — embed multi-jurisdiction crypto compliance into any exchange or VASP",
   "type": "module",
   "main": "dist/index.js",
@@ -18,5 +18,9 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
   }
 }

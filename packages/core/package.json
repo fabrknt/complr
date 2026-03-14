@@ -1,6 +1,6 @@
 {
-  "name": "@complr/core",
-  "version": "0.1.0",
+  "name": "@fabrknt/complr-core",
+  "version": "1.0.0",
   "description": "AI-powered compliance engine for digital assets — regulatory intelligence, screening, and reporting",
   "type": "module",
   "main": "dist/index.js",
@@ -34,5 +34,9 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
   }
 }

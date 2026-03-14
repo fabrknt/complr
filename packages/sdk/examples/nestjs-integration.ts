@@ -1,5 +1,5 @@
 /**
- * @complr/sdk — NestJS Integration Example
+ * @fabrknt/complr-sdk — NestJS Integration Example
  *
  * Demonstrates wrapping ComplrClient as a NestJS injectable service
  * for server-side compliance checks. Use this pattern when your
@@ -7,7 +7,7 @@
  */
 import { Injectable, Logger, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ComplrClient } from '@complr/sdk';
+import { ComplrClient } from '@fabrknt/complr-sdk';
 
 // ---------------------------------------------------------------------------
 // Service
