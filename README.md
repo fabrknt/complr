@@ -666,4 +666,4 @@ CI runs automatically on push/PR to `master` via GitHub Actions (Node 20, pnpm, 
 
 ## License
 
-Proprietary. All rights reserved.
+MIT
