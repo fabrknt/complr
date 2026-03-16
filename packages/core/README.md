@@ -1,5 +1,8 @@
 # @fabrknt/complr-core
 
+[![npm version](https://img.shields.io/npm/v/@fabrknt/complr-core.svg)](https://www.npmjs.com/package/@fabrknt/complr-core)
+[![npm downloads](https://img.shields.io/npm/dm/@fabrknt/complr-core.svg)](https://www.npmjs.com/package/@fabrknt/complr-core)
+
 AI-powered compliance engine for digital assets -- regulatory intelligence, transaction screening, and SAR/STR reporting across MAS, SFC, and FSA jurisdictions.
 
 Not every DeFi protocol needs TradFi compliance -- but if yours does, you shouldn't have to rebuild from scratch. Fabrknt plugs into your existing protocol with composable SDKs and APIs. No permissioned forks, no separate deployments.
