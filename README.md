@@ -1,8 +1,12 @@
 # Complr
 
-[![CI](https://github.com/complr/complr/actions/workflows/ci.yml/badge.svg)](https://github.com/complr/complr/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/@fabrknt/complr-core.svg)](https://www.npmjs.com/package/@fabrknt/complr-core)
+[![npm downloads](https://img.shields.io/npm/dm/@fabrknt/complr-core.svg)](https://www.npmjs.com/package/@fabrknt/complr-core)
+[![CI](https://github.com/fabrknt/complr/actions/workflows/ci.yml/badge.svg)](https://github.com/fabrknt/complr/actions/workflows/ci.yml)
 
 AI-powered compliance infrastructure for the digital asset industry.
+
+Part of [Fabrknt](https://fabrknt.com) — plug-in compliance for existing DeFi protocols. `npm install @fabrknt/complr-core`
 
 Complr is a **chain-agnostic** compliance platform covering **MAS** (Singapore), **SFC** (Hong Kong), and **FSA** (Japan). It provides a core compliance engine, an SDK for exchanges and VASPs to embed compliance checks into their workflows, and a regulated yield platform demonstrating compliance-first DeFi.
 
