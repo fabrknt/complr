@@ -12,7 +12,7 @@
     "test": "vitest run"
   },
   "keywords": ["compliance", "crypto", "aml", "kyc", "travel-rule", "sdk"],
-  "license": "MIT",
+  "license": "Apache-2.0",
   "devDependencies": {
     "vitest": "^3.0.0"
   },
