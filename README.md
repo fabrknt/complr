@@ -230,7 +230,7 @@ Wallet screening is now a two-stage pipeline supporting addresses from any block
 
 The `chain` parameter is optional -- address formats (Ethereum/EVM, Solana, Bitcoin) are auto-detected when omitted.
 
-The built-in `OfacScreener` fetches the US Treasury's SDN address supplement (`add.csv`) and entity list (`sdn.csv`), parses all "Digital Currency Address" entries across all chains, and matches by exact normalized address. Data refreshes automatically every 24 hours.
+The built-in `OfacScreener` fetches the US Treasury's SDN list (`sdn.csv`), parses every "Digital Currency Address" entry in its Remarks column across all chains (including `alt.` entries), and matches by exact normalized address. Data refreshes automatically every 24 hours. A failed download or a list with no addresses keeps the previously loaded data and leaves `lastRefreshed` unchanged; `/health` reports `ofacLastRefreshed` and `ofacAddressCount`.
 
 Custom providers can be added by implementing the `ScreeningProvider` interface and registering with the `ScreeningRegistry`.
 

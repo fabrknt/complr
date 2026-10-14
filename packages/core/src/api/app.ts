@@ -118,6 +118,7 @@ export function createApp(deps: AppDependencies): express.Express {
       version: "1.0.0",
       screeningProviders: screeningRegistry.providerCount,
       ofacLastRefreshed: ofacScreener?.lastRefreshed ?? null,
+      ofacAddressCount: ofacScreener?.addressCount ?? null,
       reviewQueue: reviewQueue ? reviewQueue.stats() : null,
     });
   });

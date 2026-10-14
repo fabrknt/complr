@@ -8,15 +8,24 @@ interface SdnEntry {
 
 /**
  * OFAC SDN list screener for sanctioned crypto addresses.
- * Fetches and parses the OFAC address supplement (add.csv) and entity list (sdn.csv)
- * from the US Treasury. Matches wallet addresses exactly (case-insensitive).
+ * Fetches the SDN list (sdn.csv) from the US Treasury and reads every
+ * "Digital Currency Address - <CHAIN> <address>" entry from its Remarks column;
+ * a row can carry several, as "alt." entries. The address supplement (add.csv)
+ * holds postal addresses only, so it is not used. Matches wallet addresses
+ * exactly (case-insensitive).
  */
 export class OfacScreener implements ScreeningProvider {
   name = "OFAC SDN";
+  /** Set only by a refresh that loaded at least one address */
   lastRefreshed?: string;
 
   /** Normalized address → SDN entry */
   private addresses = new Map<string, SdnEntry>();
+
+  /** Number of sanctioned addresses currently loaded */
+  get addressCount(): number {
+    return this.addresses.size;
+  }
 
   /** Parse a CSV line, handling quoted fields */
   private parseCsvLine(line: string): string[] {
@@ -44,66 +53,45 @@ export class OfacScreener implements ScreeningProvider {
     return fields;
   }
 
-  /** Fetch and parse the OFAC SDN data */
+  /** Extract normalized address → SDN entry from sdn.csv text */
+  private parseSdn(text: string): Map<string, SdnEntry> {
+    const addresses = new Map<string, SdnEntry>();
+    for (const line of text.split(/\r?\n/)) {
+      if (!line.includes("Digital Currency Address")) continue;
+      // sdn.csv: Ent_num, SDN_Name, SDN_Type, Program, Title, Call_Sign, Vess_type,
+      // Tonnage, GRT, Vess_flag, Vess_owner, Remarks
+      const fields = this.parseCsvLine(line);
+      if (fields.length < 12) continue;
+      const [entryId, entity, , program] = fields;
+      const remarks = fields[11];
+      for (const m of remarks.matchAll(/Digital Currency Address\s*-\s*\w+\s+([^\s;]+)/gi)) {
+        addresses.set(m[1].toLowerCase(), { entity, program, entryId });
+      }
+    }
+    return addresses;
+  }
+
+  /**
+   * Fetch and parse the OFAC SDN data. On a failed download, or a list with no
+   * addresses (for example after a format change), the previously loaded data
+   * is kept and lastRefreshed is not updated, so an empty list never silently
+   * clears every address.
+   */
   async refresh(): Promise<void> {
     try {
-      // Fetch the address supplement (add.csv)
-      const addUrl = "https://www.treasury.gov/ofac/downloads/add.csv";
-      const addResp = await fetch(addUrl, { signal: AbortSignal.timeout(30_000) });
-      if (!addResp.ok) {
-        console.warn(`OFAC add.csv fetch failed: ${addResp.status}`);
-        return;
-      }
-      const addText = await addResp.text();
-
-      // Fetch SDN entity list for entity names
       const sdnUrl = "https://www.treasury.gov/ofac/downloads/sdn.csv";
       const sdnResp = await fetch(sdnUrl, { signal: AbortSignal.timeout(30_000) });
       if (!sdnResp.ok) {
         console.warn(`OFAC sdn.csv fetch failed: ${sdnResp.status}`);
         return;
       }
-      const sdnText = await sdnResp.text();
-
-      // Parse SDN entities: entryId → entity name
-      const entities = new Map<string, string>();
-      for (const line of sdnText.split("\n")) {
-        if (!line.trim()) continue;
-        const fields = this.parseCsvLine(line);
-        // SDN CSV: Ent_num, SDN_Name, SDN_Type, Program, ...
-        if (fields.length >= 4) {
-          entities.set(fields[0], fields[1]);
-        }
+      const addresses = this.parseSdn(await sdnResp.text());
+      if (addresses.size === 0) {
+        console.warn("OFAC: sdn.csv contained no digital currency addresses; keeping previous data");
+        return;
       }
 
-      // Parse address supplement for digital currency addresses
-      this.addresses.clear();
-      for (const line of addText.split("\n")) {
-        if (!line.trim()) continue;
-        const fields = this.parseCsvLine(line);
-        // add.csv: Ent_num, Add_num, Address, City/State, Country, Remarks
-        if (fields.length < 6) continue;
-        const entryId = fields[0];
-        const remarks = fields[5] ?? "";
-
-        // Check if this is a digital currency address
-        if (!remarks.toLowerCase().includes("digital currency address")) continue;
-
-        // Extract the address from remarks — format: "Digital Currency Address - XBT bc1q..."
-        const addrMatch = remarks.match(/Digital Currency Address\s*-\s*\w+\s+(\S+)/i);
-        if (!addrMatch) continue;
-
-        const addr = addrMatch[1].toLowerCase();
-        const entity = entities.get(entryId) ?? `SDN Entry ${entryId}`;
-        const program = fields.length > 3 ? fields[3] : "OFAC SDN";
-
-        this.addresses.set(addr, {
-          entity,
-          program,
-          entryId,
-        });
-      }
-
+      this.addresses = addresses;
       this.lastRefreshed = new Date().toISOString();
       console.log(`OFAC: loaded ${this.addresses.size} sanctioned crypto addresses`);
     } catch (err) {
